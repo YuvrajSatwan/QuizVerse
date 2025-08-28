@@ -61,10 +61,11 @@ const JoinQuiz = () => {
         return
       }
 
-      await joinQuiz(foundQuiz.id, formData.playerName)
+      const playerId = await joinQuiz(foundQuiz.id, formData.playerName)
       
-      // Store player name in localStorage for host detection
+      // Store player info in localStorage
       localStorage.setItem('playerName', formData.playerName)
+      localStorage.setItem('playerId', playerId)
       
       success('Successfully joined quiz!')
       navigate(`/quiz/${foundQuiz.id}`)

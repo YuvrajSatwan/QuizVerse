@@ -31,10 +31,8 @@ const Navbar = () => {
     }
   }
 
-  const navItems = [
-    { name: 'Create Quiz', path: '/create', icon: Plus },
-    { name: 'Join Quiz', path: '/join', icon: Play }
-  ]
+  // Remove navigation items completely
+  const navItems = []
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/20">
@@ -72,7 +70,7 @@ const Navbar = () => {
             })}
           </div>
 
-          {/* User Menu */}
+          {/* User Menu - Only show when on create quiz page or user is signed in */}
           <div className="flex items-center space-x-4">
             {currentUser ? (
               <div className="relative">
@@ -116,15 +114,7 @@ const Navbar = () => {
                   )}
                 </AnimatePresence>
               </div>
-            ) : (
-              <Link
-                to="/auth"
-                className="btn btn-primary"
-              >
-                <User className="h-4 w-4" />
-                <span>Sign In</span>
-              </Link>
-            )}
+            ) : null}
 
             {/* Mobile menu button */}
             <button

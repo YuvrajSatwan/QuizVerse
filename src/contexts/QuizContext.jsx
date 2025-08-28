@@ -6,6 +6,7 @@ import {
   addDoc, 
   updateDoc,
   getDoc,
+  getDocs,
   serverTimestamp,
   query,
   orderBy,
@@ -26,6 +27,34 @@ export function QuizProvider({ children }) {
   const [players, setPlayers] = useState([])
   const [leaderboard, setLeaderboard] = useState([])
   const [timeLeft, setTimeLeft] = useState(0)
+
+  // Function to calculate and update leaderboard
+  const calculateLeaderboard = async (quizId) => {
+    try {
+      const playersSnapshot = await getDocs(collection(db, `quizzes/${quizId}/players`))
+      const playersData = []
+      
+      playersSnapshot.forEach((doc) => {
+        const data = doc.data()
+        playersData.push({
+          id: doc.id,
+          name: data.name,
+          score: data.score || 0,
+          answers: data.answers || []
+        })
+      })
+      
+      // Sort by score (highest first)
+      const sortedPlayers = playersData.sort((a, b) => b.score - a.score)
+      setLeaderboard(sortedPlayers)
+      setPlayers(playersData)
+      
+      return sortedPlayers
+    } catch (error) {
+      console.error('Error calculating leaderboard:', error)
+      return []
+    }
+  }
 
   const createQuiz = async (quizData) => {
     try {
@@ -94,13 +123,32 @@ export function QuizProvider({ children }) {
     }
   }
 
-  const submitAnswer = async (quizId, playerId, questionIndex, answer) => {
+  const submitAnswer = async (quizId, playerId, questionIndex, answer, isCorrect = false, timeBonus = 0) => {
     try {
-      // Update player's answer
+      // Calculate score for this answer
+      const baseScore = isCorrect ? 100 : 0
+      const totalScore = baseScore + timeBonus
+      
+      // Update player's answer and score
       await updateDoc(doc(db, `quizzes/${quizId}/players/${playerId}`), {
-        [`answers.${questionIndex}`]: answer,
+        [`answers.${questionIndex}`]: {
+          answer,
+          isCorrect,
+          score: totalScore,
+          answeredAt: serverTimestamp()
+        },
         lastAnsweredAt: serverTimestamp()
       })
+      
+      // Update player's total score
+      const playerDoc = await getDoc(doc(db, `quizzes/${quizId}/players/${playerId}`))
+      if (playerDoc.exists()) {
+        const playerData = playerDoc.data()
+        const currentScore = playerData.score || 0
+        await updateDoc(doc(db, `quizzes/${quizId}/players/${playerId}`), {
+          score: currentScore + totalScore
+        })
+      }
     } catch (error) {
       console.error('Error submitting answer:', error)
       throw error
@@ -110,7 +158,7 @@ export function QuizProvider({ children }) {
   const nextQuestion = async (quizId) => {
     try {
       const quizRef = doc(db, 'quizzes', quizId)
-      const quizDoc = await quizRef.get()
+      const quizDoc = await getDoc(quizRef)
       const currentQuestionIndex = quizDoc.data().currentQuestion || 0
       
       await updateDoc(quizRef, {
@@ -148,6 +196,7 @@ export function QuizProvider({ children }) {
     submitAnswer,
     nextQuestion,
     endQuiz,
+    calculateLeaderboard,
     setCurrentQuiz,
     setCurrentQuestion,
     setQuizState,

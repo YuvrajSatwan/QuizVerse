@@ -1,9 +1,26 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access to all documents for testing
-    // WARNING: This is NOT secure for production use
-    match /{document=**} {
+    // Quiz documents - read by anyone, write by anyone (for guest users)
+    match /quizzes/{quizId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if request.auth != null;
+      
+      // Players subcollection - anyone can join and update their own data
+      match /players/{playerId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if request.auth != null || 
+                      resource.data.name == request.auth.token.name ||
+                      request.resource.data.keys().hasOnly(['score', 'answers', 'lastAnsweredAt']);
+        allow delete: if request.auth != null;
+      }
+    }
+    
+    // Test collection for connection testing
+    match /test/{document} {
       allow read, write: if true;
     }
   }

@@ -13,13 +13,13 @@ import {
 } from 'lucide-react'
 import { useQuiz } from '../contexts/QuizContext'
 import { useToast } from '../contexts/ToastContext'
-import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, onSnapshot, updateDoc, collection, getDocs } from 'firebase/firestore'
 import { db } from '../firebase/config'
 
 const QuizRoom = () => {
   const { quizId } = useParams()
   const navigate = useNavigate()
-  const { currentQuiz, quizState, players, leaderboard, timeLeft } = useQuiz()
+  const { currentQuiz, quizState, players, leaderboard, timeLeft, submitAnswer, calculateLeaderboard } = useQuiz()
   const { success, error } = useToast()
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
@@ -31,6 +31,7 @@ const QuizRoom = () => {
   const [timer, setTimer] = useState(30)
   const [isHost, setIsHost] = useState(false)
   const [playerName, setPlayerName] = useState('')
+  const [playerId, setPlayerId] = useState('')
   const [quizStatus, setQuizStatus] = useState('waiting') // waiting, active, finished
   const [showLeaderboard, setShowLeaderboard] = useState(false)
 
@@ -49,12 +50,29 @@ const QuizRoom = () => {
           setQuizStatus(quizData.status || 'waiting')
           setShowResults(quizData.showResults || false)
           
-          // Check if current user is the host (quiz creator)
-          const storedPlayerName = localStorage.getItem('playerName')
-          if (storedPlayerName && quizData.createdBy === storedPlayerName) {
+          // Reset timer when quiz loads
+          setTimer(30)
+          setHasAnswered(false)
+          
+          // Better host detection - check if user created this quiz
+          const currentUserId = localStorage.getItem('userId')
+          const currentUserName = localStorage.getItem('playerName')
+          const storedPlayerId = localStorage.getItem('playerId')
+          
+          // Only set as host if explicitly marked as host for this quiz
+          if (localStorage.getItem('isQuizHost') === quizId) {
             setIsHost(true)
+            console.log('User is host for quiz:', quizId)
+          } else {
+            setIsHost(false)
+            console.log('User is NOT host for quiz:', quizId)
           }
-          setPlayerName(storedPlayerName || '')
+          
+          setPlayerName(currentUserName || '')
+          setPlayerId(storedPlayerId || '')
+          
+          // Load initial player data and leaderboard
+          await calculateLeaderboard(quizId)
         } else {
           error('Quiz not found')
           navigate('/')
@@ -73,13 +91,32 @@ const QuizRoom = () => {
     }
 
     // Set up real-time listener for quiz updates
-    const unsubscribe = onSnapshot(doc(db, 'quizzes', quizId), (doc) => {
+    const unsubscribe = onSnapshot(doc(db, 'quizzes', quizId), async (doc) => {
       if (doc.exists()) {
         const data = doc.data()
-        setCurrentQuestionIndex(data.currentQuestion || 0)
-        setQuizStatus(data.status || 'waiting')
+        const newQuestionIndex = data.currentQuestion || 0
+        const newStatus = data.status || 'waiting'
+        
+        // Reset timer and answer state when question changes
+        if (newQuestionIndex !== currentQuestionIndex) {
+          setTimer(30)
+          setHasAnswered(false)
+          setSelectedAnswer(null)
+        }
+        
+        // Reset timer when quiz becomes active
+        if (newStatus === 'active' && quizStatus !== 'active') {
+          setTimer(30)
+          setHasAnswered(false)
+        }
+        
+        setCurrentQuestionIndex(newQuestionIndex)
+        setQuizStatus(newStatus)
         setShowResults(data.showResults || false)
         setShowLeaderboard(data.showLeaderboard || false)
+        
+        // Update leaderboard when quiz state changes
+        await calculateLeaderboard(quizId)
       }
     })
 
@@ -87,19 +124,19 @@ const QuizRoom = () => {
   }, [quizId, navigate, error])
 
   useEffect(() => {
-    if (timer > 0) {
+    if (quizStatus === 'active' && timer > 0) {
       const interval = setInterval(() => {
         setTimer(prev => prev - 1)
       }, 1000)
       return () => clearInterval(interval)
-    } else {
-      // Time's up
+    } else if (timer <= 0 && quizStatus === 'active') {
+      // Time's up only during active quiz
       if (!hasAnswered) {
         setHasAnswered(true)
         setShowResults(true)
       }
     }
-  }, [timer, hasAnswered])
+  }, [timer, hasAnswered, quizStatus])
 
   const handleAnswerSelect = (answerIndex) => {
     if (hasAnswered) return
@@ -155,27 +192,49 @@ const QuizRoom = () => {
       await updateDoc(doc(db, 'quizzes', quizId), {
         showLeaderboard: true
       })
+      // Update leaderboard data
+      await calculateLeaderboard(quizId)
     } catch (err) {
       error('Failed to show leaderboard')
     }
   }
 
-  const handleSubmitAnswer = () => {
+  const handleSubmitAnswer = async () => {
     if (selectedAnswer === null) {
       error('Please select an answer')
       return
     }
 
+    if (!playerId) {
+      error('Player ID not found. Please rejoin the quiz.')
+      return
+    }
+
     setHasAnswered(true)
     
-    // Check if answer is correct
-    const currentQuestion = quiz.questions[currentQuestionIndex]
-    const isCorrect = selectedAnswer === currentQuestion.correctAnswer
-    
-    if (isCorrect) {
-      success('Answer submitted!')
-    } else {
-      error('Answer submitted!')
+    try {
+      // Check if answer is correct
+      const currentQuestion = quiz.questions[currentQuestionIndex]
+      const isCorrect = selectedAnswer === currentQuestion.correctAnswer
+      
+      // Calculate time bonus (more points for faster answers)
+      const timeBonus = Math.max(0, Math.floor(timer / 2)) // Up to 15 bonus points
+      
+      // Submit answer with scoring
+      await submitAnswer(quizId, playerId, currentQuestionIndex, selectedAnswer, isCorrect, timeBonus)
+      
+      if (isCorrect) {
+        success(`Correct! +${100 + timeBonus} points`)
+      } else {
+        success('Answer submitted!')
+      }
+      
+      // Update leaderboard
+      await calculateLeaderboard(quizId)
+    } catch (err) {
+      console.error('Error submitting answer:', err)
+      error('Failed to submit answer')
+      setHasAnswered(false)
     }
   }
 
@@ -234,12 +293,14 @@ const QuizRoom = () => {
                 <div className="text-sm text-white/80">Players</div>
               </div>
               
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
-                <div className="flex items-center space-x-2">
-                  <Clock className="w-5 h-5" />
-                  <span className="text-xl font-bold">{timer}s</span>
+              {quizStatus === 'active' && (
+                <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-5 h-5" />
+                    <span className="text-xl font-bold">{timer}s</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -249,7 +310,7 @@ const QuizRoom = () => {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Question Area */}
           <div className="lg:col-span-2">
-            {quizStatus === 'waiting' && (
+            {(quizStatus === 'waiting' || !quizStatus) && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -264,6 +325,9 @@ const QuizRoom = () => {
                 <p className="text-xl text-gray-600 mb-6">
                   The quiz will begin when the host starts it
                 </p>
+                <div className="text-sm text-gray-500 mb-6">
+                  Quiz Status: {quizStatus || 'loading'} | Host: {isHost ? 'Yes' : 'No'}
+                </div>
                 {isHost && (
                   <button
                     onClick={startQuiz}
