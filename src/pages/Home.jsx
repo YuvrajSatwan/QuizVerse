@@ -168,126 +168,67 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Enhanced Workflow Section */}
-      <section className="py-20 px-4 bg-gradient-to-br from-gray-50 to-white">
-        <div className="max-w-7xl mx-auto">
+      {/* How It Works Section */}
+      <section className="py-20 px-4 bg-gray-50">
+        <div className="max-w-4xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
             viewport={{ once: true }}
-            className="text-center mb-20"
+            className="mb-16"
           >
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-2xl mb-6">
-              <Brain className="w-8 h-8 text-white" />
-            </div>
-            <h2 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
               How It Works
             </h2>
-            <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-              Create engaging quizzes and host interactive sessions in just three simple steps
+            <p className="text-gray-600 text-lg">
+              Three simple steps to create and play
             </p>
           </motion.div>
 
-          <div className="grid lg:grid-cols-3 gap-8 lg:gap-12">
-            {workflowSteps.map((step, index) => {
-              const Icon = step.icon
-              return (
-                <motion.div
-                  key={step.title}
-                  initial={{ opacity: 0, y: 40 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.7, delay: index * 0.2 }}
-                  viewport={{ once: true }}
-                  className="relative group"
-                >
-                  {/* Connection Line */}
-                  {index < workflowSteps.length - 1 && (
-                    <div className="hidden lg:block absolute top-16 left-full w-12 h-0.5 bg-gradient-to-r from-gray-300 to-gray-200 z-0" />
-                  )}
-                  
-                  <div className="relative bg-white rounded-3xl p-8 shadow-lg border border-gray-100 group-hover:shadow-2xl transition-all duration-500 group-hover:-translate-y-2">
-                    {/* Step Number */}
-                    <div className="absolute -top-4 left-8 w-8 h-8 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg">
-                      {index + 1}
-                    </div>
-                    
-                    {/* Icon */}
-                    <motion.div
-                      whileHover={{ scale: 1.1, rotate: 5 }}
-                      className={`inline-flex items-center justify-center w-20 h-20 ${step.bgColor} rounded-2xl mb-6 group-hover:shadow-lg transition-all duration-300`}
-                    >
-                      <Icon className={`w-10 h-10 ${step.iconColor}`} />
-                    </motion.div>
-                    
-                    {/* Content */}
-                    <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                      {step.title}
-                    </h3>
-                    <p className="text-gray-600 leading-relaxed mb-6">
-                      {step.description}
-                    </p>
-                    
-                    {/* Features List */}
-                    <div className="space-y-2">
-                      {step.features.map((feature, featureIndex) => (
-                        <motion.div
-                          key={feature}
-                          initial={{ opacity: 0, x: -20 }}
-                          whileInView={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.4, delay: (index * 0.2) + (featureIndex * 0.1) }}
-                          viewport={{ once: true }}
-                          className="flex items-center space-x-3"
-                        >
-                          <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${step.color}`} />
-                          <span className="text-sm text-gray-700 font-medium">{feature}</span>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
-                </motion.div>
-              )
-            })}
-          </div>
-          
-          {/* Additional Info Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.8 }}
-            viewport={{ once: true }}
-            className="mt-20 text-center"
-          >
-            <div className="bg-white rounded-3xl p-8 md:p-12 shadow-lg border border-gray-100">
-              <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">
-                Why Choose QuizVerse?
-              </h3>
-              <div className="grid md:grid-cols-3 gap-8">
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-xl mb-4">
-                    <Users className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <h4 className="font-semibold text-gray-900 mb-2">No Downloads Required</h4>
-                  <p className="text-gray-600 text-sm">Works on any device with a web browser</p>
-                </div>
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-xl mb-4">
-                    <Trophy className="w-6 h-6 text-green-600" />
-                  </div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Real-time Experience</h4>
-                  <p className="text-gray-600 text-sm">Live updates and instant feedback</p>
-                </div>
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-xl mb-4">
-                    <Brain className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Easy to Use</h4>
-                  <p className="text-gray-600 text-sm">Intuitive interface for hosts and players</p>
-                </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              viewport={{ once: true }}
+              className="text-center"
+            >
+              <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Edit3 className="w-8 h-8 text-blue-600" />
               </div>
-            </div>
-          </motion.div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Create</h3>
+              <p className="text-gray-600">Add questions and answers</p>
+            </motion.div>
 
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              viewport={{ once: true }}
+              className="text-center"
+            >
+              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Share2 className="w-8 h-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Share</h3>
+              <p className="text-gray-600">Get a 6-digit code to share</p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              viewport={{ once: true }}
+              className="text-center"
+            >
+              <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Gamepad2 className="w-8 h-8 text-purple-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Play</h3>
+              <p className="text-gray-600">Join and compete in real-time</p>
+            </motion.div>
+          </div>
         </div>
       </section>
     </div>

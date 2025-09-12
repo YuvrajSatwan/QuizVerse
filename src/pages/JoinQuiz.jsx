@@ -66,6 +66,8 @@ const JoinQuiz = () => {
       // Store player info in localStorage
       localStorage.setItem('playerName', formData.playerName)
       localStorage.setItem('playerId', playerId)
+      // Clear host flag since this user is joining as a student
+      localStorage.removeItem('isQuizHost')
       
       success('Successfully joined quiz!')
       navigate(`/quiz/${foundQuiz.id}`)
@@ -78,25 +80,18 @@ const JoinQuiz = () => {
   }
 
   return (
-    <div className="min-h-screen pt-20 px-4 bg-gradient-to-br from-blue-50 to-purple-50">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-gray-50 to-white">
+      <div className="w-full max-w-md">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="text-center mb-8"
         >
-          <button
-            onClick={() => navigate('/')}
-            className="btn btn-ghost mb-4"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span>Back to Home</span>
-          </button>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Join Quiz
           </h1>
-          <p className="text-xl text-gray-600">
-            Enter the quiz code to join an interactive quiz session
+          <p className="text-gray-600">
+            Enter code to join
           </p>
         </motion.div>
 
@@ -104,37 +99,28 @@ const JoinQuiz = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="card p-8"
+          className="bg-white rounded-2xl shadow-lg p-8"
         >
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Quiz Code *
-              </label>
               <input
                 type="text"
                 value={formData.quizCode}
                 onChange={(e) => setFormData({ ...formData, quizCode: e.target.value.toUpperCase() })}
-                className="input text-center text-2xl font-mono tracking-wider"
-                placeholder="Enter 6-digit code"
+                className="w-full text-center text-3xl font-mono tracking-widest border-2 border-gray-200 rounded-xl py-4 px-6 focus:border-primary-500 focus:outline-none transition-colors"
+                placeholder="QUIZ CODE"
                 maxLength={6}
                 required
               />
-              <p className="text-sm text-gray-500 mt-2">
-                Enter the 6-digit code provided by the quiz host
-              </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Your Name *
-              </label>
               <input
                 type="text"
                 value={formData.playerName}
                 onChange={(e) => setFormData({ ...formData, playerName: e.target.value })}
-                className="input"
-                placeholder="Enter your name"
+                className="w-full text-center text-lg border-2 border-gray-200 rounded-xl py-3 px-6 focus:border-primary-500 focus:outline-none transition-colors"
+                placeholder="Your Name"
                 required
               />
             </div>
@@ -142,76 +128,33 @@ const JoinQuiz = () => {
             <button
               type="submit"
               disabled={isJoining}
-              className="btn btn-secondary w-full text-lg py-4"
+              className="w-full bg-primary-500 hover:bg-primary-600 text-white font-semibold py-4 px-6 rounded-xl transition-colors disabled:opacity-50"
             >
               {isJoining ? (
-                <>
+                <div className="flex items-center justify-center space-x-2">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Joining Quiz...</span>
-                </>
+                  <span>Joining...</span>
+                </div>
               ) : (
-                <>
-                  <Play className="w-5 h-5" />
-                  <span>Join Quiz</span>
-                </>
+                'Join Quiz'
               )}
             </button>
           </form>
         </motion.div>
 
-        {/* Info Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mt-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="text-center"
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="text-center mt-6"
+        >
+          <button
+            onClick={() => navigate('/')}
+            className="text-gray-500 hover:text-gray-700 transition-colors"
           >
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-2xl mb-4">
-              <Users className="w-8 h-8 text-blue-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Join Anywhere
-            </h3>
-            <p className="text-gray-600">
-              Join quizzes from any device with just a code
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="text-center"
-          >
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-100 rounded-2xl mb-4">
-              <Clock className="w-8 h-8 text-purple-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Real-time Updates
-            </h3>
-            <p className="text-gray-600">
-              See questions and results as they happen
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="text-center"
-          >
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-2xl mb-4">
-              <Trophy className="w-8 h-8 text-green-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Live Leaderboard
-            </h3>
-            <p className="text-gray-600">
-              Compete with other players in real-time
-            </p>
-          </motion.div>
-        </div>
+            ← Back to Home
+          </button>
+        </motion.div>
       </div>
     </div>
   )

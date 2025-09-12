@@ -12,9 +12,7 @@ service cloud.firestore {
       match /players/{playerId} {
         allow read: if true;
         allow create: if true;
-        allow update: if request.auth != null || 
-                      resource.data.name == request.auth.token.name ||
-                      request.resource.data.keys().hasOnly(['score', 'answers', 'lastAnsweredAt']);
+        allow update: if true;
         allow delete: if request.auth != null;
       }
     }

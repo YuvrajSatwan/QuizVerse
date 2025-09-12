@@ -8,6 +8,7 @@ import Home from './pages/Home'
 import CreateQuiz from './pages/CreateQuiz'
 import JoinQuiz from './pages/JoinQuiz'
 import QuizRoom from './pages/QuizRoom'
+import FirebaseDiagnostic from './components/FirebaseDiagnostic'
 import ToastContainer from './components/ToastContainer'
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
                 <Route path="/create" element={<CreateQuiz />} />
                 <Route path="/join" element={<JoinQuiz />} />
                 <Route path="/quiz/:quizId" element={<QuizRoom />} />
+                <Route path="/diagnostic" element={<FirebaseDiagnostic />} />
               </Routes>
               <ToastContainer />
             </div>

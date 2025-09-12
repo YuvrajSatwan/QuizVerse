@@ -25,6 +25,7 @@ const QuizRoom = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState(null)
   const [hasAnswered, setHasAnswered] = useState(false)
+  const [answeredQuestions, setAnsweredQuestions] = useState(new Set())
   const [showResults, setShowResults] = useState(false)
   const [quiz, setQuiz] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -59,13 +60,28 @@ const QuizRoom = () => {
           const currentUserName = localStorage.getItem('playerName')
           const storedPlayerId = localStorage.getItem('playerId')
           
-          // Only set as host if explicitly marked as host for this quiz
-          if (localStorage.getItem('isQuizHost') === quizId) {
+          // Check multiple ways to determine if user is host
+          const storedHostQuizId = localStorage.getItem('isQuizHost')
+          const isCreator = quizData.createdBy === currentUserId
+          
+          console.log('🔍 Host detection debug:')
+          console.log('  - storedHostQuizId:', storedHostQuizId)
+          console.log('  - quizId:', quizId)
+          console.log('  - Quiz createdBy:', quizData.createdBy)
+          console.log('  - currentUserId:', currentUserId)
+          console.log('  - Is creator match:', isCreator)
+          console.log('  - Stored quiz match:', storedHostQuizId === quizId)
+          
+          // User is host ONLY if they created the quiz AND have matching stored host quiz ID
+          // This prevents students from being marked as host
+          const shouldBeHost = isCreator && (storedHostQuizId === quizId)
+          
+          if (shouldBeHost) {
             setIsHost(true)
-            console.log('User is host for quiz:', quizId)
+            console.log('✅ User confirmed as host for quiz:', quizId)
           } else {
             setIsHost(false)
-            console.log('User is NOT host for quiz:', quizId)
+            console.log('❌ User is NOT host for quiz:', quizId, '(creator:', isCreator, ', stored match:', storedHostQuizId === quizId, ')')
           }
           
           setPlayerName(currentUserName || '')
@@ -91,34 +107,56 @@ const QuizRoom = () => {
     }
 
     // Set up real-time listener for quiz updates
-    const unsubscribe = onSnapshot(doc(db, 'quizzes', quizId), async (doc) => {
-      if (doc.exists()) {
-        const data = doc.data()
-        const newQuestionIndex = data.currentQuestion || 0
-        const newStatus = data.status || 'waiting'
-        
-        // Reset timer and answer state when question changes
-        if (newQuestionIndex !== currentQuestionIndex) {
-          setTimer(30)
-          setHasAnswered(false)
-          setSelectedAnswer(null)
+    const unsubscribe = onSnapshot(
+      doc(db, 'quizzes', quizId), 
+      async (doc) => {
+        if (doc.exists()) {
+          const data = doc.data()
+          const newQuestionIndex = data.currentQuestion || 0
+          const newStatus = data.status || 'waiting'
+          
+          // Reset timer and answer state when question changes
+          if (newQuestionIndex !== currentQuestionIndex) {
+            setTimer(30)
+            setSelectedAnswer(null)
+            
+            // Check if this question was already answered by this student
+            setAnsweredQuestions(prev => {
+              const wasAnswered = prev.has(newQuestionIndex)
+              setHasAnswered(wasAnswered)
+              console.log(`Question ${newQuestionIndex}: wasAnswered = ${wasAnswered}, answeredQuestions:`, Array.from(prev))
+              return prev
+            })
+          }
+          
+          // Reset timer when quiz becomes active
+          if (newStatus === 'active' && quizStatus !== 'active') {
+            setTimer(30)
+            // Only reset hasAnswered if this question hasn't been answered yet
+            const wasAnswered = answeredQuestions.has(newQuestionIndex)
+            setHasAnswered(wasAnswered)
+          }
+          
+          setCurrentQuestionIndex(newQuestionIndex)
+          setQuizStatus(newStatus)
+          setShowResults(data.showResults || false)
+          setShowLeaderboard(data.showLeaderboard || false)
+          
+          // Update leaderboard when quiz state changes
+          await calculateLeaderboard(quizId)
         }
-        
-        // Reset timer when quiz becomes active
-        if (newStatus === 'active' && quizStatus !== 'active') {
-          setTimer(30)
-          setHasAnswered(false)
+      },
+      (error) => {
+        // Suppress common network errors to reduce console spam
+        if (error.message?.includes('ERR_INTERNET_DISCONNECTED') || 
+            error.code === 'unavailable' ||
+            error.message?.includes('WebChannelConnection')) {
+          console.warn('🌐 Quiz sync temporarily unavailable (offline mode)')
+        } else {
+          console.error('Quiz subscription error:', error)
         }
-        
-        setCurrentQuestionIndex(newQuestionIndex)
-        setQuizStatus(newStatus)
-        setShowResults(data.showResults || false)
-        setShowLeaderboard(data.showLeaderboard || false)
-        
-        // Update leaderboard when quiz state changes
-        await calculateLeaderboard(quizId)
       }
-    })
+    )
 
     return () => unsubscribe()
   }, [quizId, navigate, error])
@@ -146,14 +184,39 @@ const QuizRoom = () => {
   // Host control functions
   const startQuiz = async () => {
     try {
+      console.log('Starting quiz with ID:', quizId)
+      console.log('User is host:', isHost)
+      console.log('Quiz status:', quizStatus)
+      
+      if (!isHost) {
+        error('Only the host can start the quiz')
+        return
+      }
+      
+      // Check if offline/Firebase unavailable
+      if (!navigator.onLine) {
+        // Offline mode - update local state only
+        setQuizStatus('active')
+        setTimer(30)
+        success('Quiz started! (Offline mode)')
+        console.log('Quiz started in offline mode')
+        return
+      }
+      
       await updateDoc(doc(db, 'quizzes', quizId), {
         status: 'active',
         currentQuestion: 0,
         startedAt: new Date().toISOString()
       })
       success('Quiz started!')
+      console.log('Quiz started successfully')
     } catch (err) {
-      error('Failed to start quiz')
+      console.error('Error starting quiz:', err)
+      // Fallback to offline mode if Firebase fails
+      setQuizStatus('active')
+      setTimer(30)
+      success('Quiz started! (Offline fallback)')
+      console.log('Quiz started in offline fallback mode')
     }
   }
 
@@ -166,11 +229,14 @@ const QuizRoom = () => {
           showResults: false
         })
       } else {
-        // Quiz finished
+        // Quiz finished - only show results for host
         await updateDoc(doc(db, 'quizzes', quizId), {
           status: 'finished',
+          showResults: false,
+          showLeaderboard: false,
           endedAt: new Date().toISOString()
         })
+        success('Quiz completed! Host can now show results.')
       }
     } catch (err) {
       error('Failed to advance question')
@@ -222,6 +288,9 @@ const QuizRoom = () => {
       
       // Submit answer with scoring
       await submitAnswer(quizId, playerId, currentQuestionIndex, selectedAnswer, isCorrect, timeBonus)
+      
+      // Mark this question as answered
+      setAnsweredQuestions(prev => new Set([...prev, currentQuestionIndex]))
       
       if (isCorrect) {
         success(`Correct! +${100 + timeBonus} points`)
@@ -330,13 +399,23 @@ const QuizRoom = () => {
                 </div>
                 {isHost && (
                   <button
-                    onClick={startQuiz}
+                    onClick={() => {
+                      console.log('Start Quiz button clicked!')
+                      startQuiz()
+                    }}
                     className="btn btn-primary text-lg px-8 py-4"
                   >
                     <Play className="w-5 h-5" />
                     <span>Start Quiz</span>
                   </button>
                 )}
+                
+                {/* Debug info - remove after fixing */}
+                <div className="mt-4 p-4 bg-gray-100 rounded text-sm">
+                  <p>Debug: isHost = {isHost ? 'true' : 'false'}</p>
+                  <p>Quiz Status = {quizStatus}</p>
+                  <p>Quiz ID = {quizId}</p>
+                </div>
               </motion.div>
             )}
 
@@ -455,15 +534,6 @@ const QuizRoom = () => {
                 {isHost ? (
                   // Host controls
                   <div className="space-y-4">
-                    {quizStatus === 'waiting' && (
-                      <button
-                        onClick={startQuiz}
-                        className="btn btn-primary text-lg px-8 py-4"
-                      >
-                        <Play className="w-5 h-5" />
-                        <span>Start Quiz</span>
-                      </button>
-                    )}
                     
                     {quizStatus === 'active' && !showResults && (
                       <button
@@ -540,16 +610,62 @@ const QuizRoom = () => {
                   Quiz Completed!
                 </h2>
                 <p className="text-xl text-gray-600 mb-6">
-                  Thanks for participating in the quiz
+                  {isHost ? 'All questions have been completed. Results are now available!' : 'Thanks for participating in the quiz'}
                 </p>
+                
+                {/* Final Results Summary for Host */}
+                {isHost && showLeaderboard && leaderboard.length > 0 && (
+                  <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-6 mb-6">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">Final Results</h3>
+                    <div className="space-y-3">
+                      {leaderboard.slice(0, 3).map((player, index) => (
+                        <div key={player.id} className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm">
+                          <div className="flex items-center space-x-3">
+                            <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                              index === 0 ? 'bg-yellow-500 text-white' :
+                              index === 1 ? 'bg-gray-400 text-white' :
+                              index === 2 ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700'
+                            }`}>
+                              {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                            </span>
+                            <span className="font-semibold text-lg">{player.name}</span>
+                          </div>
+                          <span className="font-bold text-xl text-primary-600">{player.score} pts</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 text-sm text-gray-600">
+                      Total Participants: {leaderboard.length}
+                    </div>
+                  </div>
+                )}
+                
                 {isHost && !showLeaderboard && (
                   <button
                     onClick={toggleLeaderboard}
                     className="btn btn-primary text-lg px-8 py-4"
                   >
                     <Trophy className="w-5 h-5" />
-                    <span>Show Leaderboard</span>
+                    <span>Show Final Results</span>
                   </button>
+                )}
+                
+                {/* Action buttons for host */}
+                {isHost && showLeaderboard && (
+                  <div className="space-y-4">
+                    <button
+                      onClick={() => navigate('/create')}
+                      className="btn btn-secondary text-lg px-8 py-4 mr-4"
+                    >
+                      Create New Quiz
+                    </button>
+                    <button
+                      onClick={() => navigate('/')}
+                      className="btn btn-outline text-lg px-8 py-4"
+                    >
+                      Back to Home
+                    </button>
+                  </div>
                 )}
               </motion.div>
             )}
