@@ -80,6 +80,10 @@ export default {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.8' },
         },
+        pulseBorder: {
+          '0%, 100%': { borderColor: 'rgba(102, 126, 234, 0.3)' },
+          '50%': { borderColor: 'rgba(102, 126, 234, 0.8)' },
+        },
       },
       backdropBlur: {
         xs: '2px',

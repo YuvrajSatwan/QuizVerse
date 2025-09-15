@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { QuizProvider } from './contexts/QuizContext'
 import { ToastProvider } from './contexts/ToastContext'
@@ -11,23 +11,33 @@ import QuizRoom from './pages/QuizRoom'
 import FirebaseDiagnostic from './components/FirebaseDiagnostic'
 import ToastContainer from './components/ToastContainer'
 
+// Component to handle conditional navbar rendering
+function AppContent() {
+  const location = useLocation()
+  const isQuizRoom = location.pathname.startsWith('/quiz/')
+  
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      {!isQuizRoom && <Navbar />}
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/create" element={<CreateQuiz />} />
+        <Route path="/join" element={<JoinQuiz />} />
+        <Route path="/quiz/:quizId" element={<QuizRoom />} />
+        <Route path="/diagnostic" element={<FirebaseDiagnostic />} />
+      </Routes>
+      <ToastContainer />
+    </div>
+  )
+}
+
 function App() {
   return (
     <Router>
       <AuthProvider>
         <QuizProvider>
           <ToastProvider>
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-              <Navbar />
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/create" element={<CreateQuiz />} />
-                <Route path="/join" element={<JoinQuiz />} />
-                <Route path="/quiz/:quizId" element={<QuizRoom />} />
-                <Route path="/diagnostic" element={<FirebaseDiagnostic />} />
-              </Routes>
-              <ToastContainer />
-            </div>
+            <AppContent />
           </ToastProvider>
         </QuizProvider>
       </AuthProvider>

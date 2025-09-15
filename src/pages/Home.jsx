@@ -10,7 +10,13 @@ import {
   Brain,
   Users,
   Trophy,
-  ArrowRight
+  ArrowRight,
+  Check,
+  ChevronRight,
+  Mail,
+  Github,
+  Twitter,
+  ExternalLink
 } from 'lucide-react'
 
 const Home = () => {
@@ -80,7 +86,7 @@ const Home = () => {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center px-4 pt-16">
+      <section className="relative min-h-screen flex items-center justify-center px-4 pt-24">
         {/* Background Elements */}
         <div className="absolute inset-0 overflow-hidden">
           <motion.div
@@ -118,7 +124,8 @@ const Home = () => {
               <span className="text-gradient">QuizVerse</span>
             </h1>
             <p className="text-xl md:text-2xl text-gray-600 mb-12 max-w-2xl mx-auto leading-relaxed">
-              Create, share, and play interactive quizzes in real-time with a beautiful, modern interface
+              Transform learning into an adventure. 
+              <span className="text-primary-600 font-semibold">Ignite curiosity, unlock potential.</span>
             </p>
           </motion.div>
 
@@ -169,68 +176,190 @@ const Home = () => {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-20 px-4 bg-gray-50">
-        <div className="max-w-4xl mx-auto text-center">
+      <section className="py-24 px-4 bg-gradient-to-br from-gray-50 to-white">
+        <div className="max-w-7xl mx-auto">
+          {/* Section Header */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
             viewport={{ once: true }}
-            className="mb-16"
+            className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
               How It Works
             </h2>
-            <p className="text-gray-600 text-lg">
-              Three simple steps to create and play
+            <p className="text-lg text-gray-600">
+              Three simple steps to get started
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              viewport={{ once: true }}
-              className="text-center"
-            >
-              <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Edit3 className="w-8 h-8 text-blue-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Create</h3>
-              <p className="text-gray-600">Add questions and answers</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              viewport={{ once: true }}
-              className="text-center"
-            >
-              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Share2 className="w-8 h-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Share</h3>
-              <p className="text-gray-600">Get a 6-digit code to share</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              viewport={{ once: true }}
-              className="text-center"
-            >
-              <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Gamepad2 className="w-8 h-8 text-purple-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Play</h3>
-              <p className="text-gray-600">Join and compete in real-time</p>
-            </motion.div>
+          {/* Interactive Workflow Steps */}
+          <div className="relative">
+            {/* Connection Line */}
+            <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-200 via-purple-200 to-green-200 transform -translate-y-1/2" />
+            
+            <div className="grid lg:grid-cols-3 gap-12 lg:gap-8">
+              {workflowSteps.map((step, index) => {
+                const Icon = step.icon
+                return (
+                  <motion.div
+                    key={step.title}
+                    initial={{ opacity: 0, y: 40 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.7, delay: index * 0.2 }}
+                    viewport={{ once: true }}
+                    whileHover={{ y: -8 }}
+                    className="relative group cursor-pointer"
+                  >
+                    {/* Step Card */}
+                    <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 group-hover:border-primary-200 relative z-10">
+                      {/* Step Number */}
+                      <div className="absolute -top-4 left-6">
+                        <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${step.color} text-white flex items-center justify-center font-bold text-sm shadow-lg`}>
+                          {index + 1}
+                        </div>
+                      </div>
+                      
+                      {/* Icon */}
+                      <div className={`w-16 h-16 rounded-2xl ${step.bgColor} flex items-center justify-center mb-4 mx-auto group-hover:scale-105 transition-transform duration-300`}>
+                        <Icon className={`w-8 h-8 ${step.iconColor}`} />
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="text-center">
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">
+                          {step.title}
+                        </h3>
+                        <p className="text-gray-600 text-sm leading-relaxed">
+                          {step.description.split('.')[0]}.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Arrow Connector (Hidden on last item) */}
+                    {index < workflowSteps.length - 1 && (
+                      <div className="hidden lg:flex absolute top-1/2 -right-4 transform -translate-y-1/2 z-20">
+                        <div className="bg-white rounded-full p-2 shadow-md border border-gray-200">
+                          <ChevronRight className="w-5 h-5 text-gray-400" />
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )
+              })}
+            </div>
           </div>
+          
+          {/* Call to Action */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.8 }}
+            viewport={{ once: true }}
+            className="text-center mt-20"
+          >
+            <h3 className="text-2xl font-bold text-gray-900 mb-6">
+              Ready to get started?
+            </h3>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                to="/create"
+                className="group bg-primary-500 hover:bg-primary-600 text-white px-8 py-4 rounded-2xl font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center justify-center space-x-2"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Create Your First Quiz</span>
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link
+                to="/join"
+                className="group bg-white border-2 border-gray-200 hover:border-primary-300 text-gray-700 hover:text-primary-600 px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-primary-50 transform hover:scale-105 transition-all duration-300 flex items-center justify-center space-x-2"
+              >
+                <Play className="w-5 h-5" />
+                <span>Join a Quiz</span>
+              </Link>
+            </div>
+          </motion.div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-gray-300">
+        <div className="max-w-7xl mx-auto px-4 py-16">
+          <div className="grid md:grid-cols-4 gap-8">
+            {/* Brand */}
+            <div className="col-span-2 md:col-span-1">
+              <div className="flex items-center space-x-2 mb-6">
+                <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center">
+                  <Brain className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-xl font-bold text-white">QuizVerse</span>
+              </div>
+              <p className="text-gray-400 mb-6 leading-relaxed">
+                Create engaging, interactive quizzes that bring learning to life. Perfect for educators, trainers, and anyone who loves to share knowledge.
+              </p>
+              <div className="flex space-x-4">
+                <a href="#" className="w-10 h-10 bg-gray-800 hover:bg-primary-500 rounded-2xl flex items-center justify-center transition-colors duration-300">
+                  <Twitter className="w-5 h-5" />
+                </a>
+                <a href="#" className="w-10 h-10 bg-gray-800 hover:bg-primary-500 rounded-2xl flex items-center justify-center transition-colors duration-300">
+                  <Github className="w-5 h-5" />
+                </a>
+                <a href="#" className="w-10 h-10 bg-gray-800 hover:bg-primary-500 rounded-2xl flex items-center justify-center transition-colors duration-300">
+                  <Mail className="w-5 h-5" />
+                </a>
+              </div>
+            </div>
+            
+            {/* Product */}
+            <div>
+              <h3 className="text-white font-semibold mb-6">Product</h3>
+              <ul className="space-y-3">
+                <li><Link to="/create" className="hover:text-white transition-colors duration-300 flex items-center group"><span>Create Quiz</span><ExternalLink className="w-4 h-4 ml-2 opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
+                <li><Link to="/join" className="hover:text-white transition-colors duration-300 flex items-center group"><span>Join Quiz</span><ExternalLink className="w-4 h-4 ml-2 opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
+                <li><a href="#" className="hover:text-white transition-colors duration-300">Features</a></li>
+                <li><a href="#" className="hover:text-white transition-colors duration-300">Templates</a></li>
+              </ul>
+            </div>
+            
+            {/* Support */}
+            <div>
+              <h3 className="text-white font-semibold mb-6">Support</h3>
+              <ul className="space-y-3">
+                <li><a href="#" className="hover:text-white transition-colors duration-300">Help Center</a></li>
+                <li><a href="#" className="hover:text-white transition-colors duration-300">Documentation</a></li>
+                <li><a href="#" className="hover:text-white transition-colors duration-300">Contact Us</a></li>
+                <li><a href="#" className="hover:text-white transition-colors duration-300">Status</a></li>
+              </ul>
+            </div>
+            
+            {/* Legal */}
+            <div>
+              <h3 className="text-white font-semibold mb-6">Legal</h3>
+              <ul className="space-y-3">
+                <li><a href="#" className="hover:text-white transition-colors duration-300">Privacy Policy</a></li>
+                <li><a href="#" className="hover:text-white transition-colors duration-300">Terms of Service</a></li>
+                <li><a href="#" className="hover:text-white transition-colors duration-300">Cookie Policy</a></li>
+                <li><a href="#" className="hover:text-white transition-colors duration-300">GDPR</a></li>
+              </ul>
+            </div>
+          </div>
+          
+          {/* Bottom Bar */}
+          <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
+            <p className="text-gray-400 text-sm">
+              © 2024 QuizVerse. All rights reserved. Made with ❤️ for better learning.
+            </p>
+            <div className="flex items-center space-x-6 mt-4 md:mt-0">
+              <span className="text-sm text-gray-400">Powered by modern web technologies</span>
+              <div className="flex space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-xs text-green-500">All systems operational</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

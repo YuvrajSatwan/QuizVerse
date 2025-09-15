@@ -66,5 +66,17 @@
   .animate-bounce-gentle {
     animation: bounceGentle 2s ease-in-out infinite;
   }
+  
+  .chart-glow {
+    @apply shadow-lg hover:shadow-glow transition-shadow duration-300;
+  }
+  
+  .pulse-border {
+    animation: pulseBorder 2s ease-in-out infinite;
+  }
+  
+  .chart-card {
+    @apply card hover:shadow-glow transition-all duration-300 hover:-translate-y-1;
+  }
 }
 

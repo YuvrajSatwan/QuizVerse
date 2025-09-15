@@ -9,13 +9,19 @@ import {
   CheckCircle,
   Play,
   Eye,
-  BarChart3
+  BarChart3,
+  Settings,
+  MoreVertical,
+  Pause,
+  RotateCcw
 } from 'lucide-react'
 import { useQuiz } from '../contexts/QuizContext'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore'
+import { useQuizStatistics } from '../hooks/useQuizStatistics'
+import { doc, getDoc, onSnapshot, updateDoc, collection } from 'firebase/firestore'
 import { db } from '../firebase/config'
+import QuizDashboard from '../components/charts/QuizDashboard'
 
 const QuizRoom = () => {
   const { quizId } = useParams()
@@ -40,11 +46,27 @@ const QuizRoom = () => {
   const [leaderboard, setLeaderboard] = useState([])
   const [playerAnswers, setPlayerAnswers] = useState({})
   
+  // Dashboard State
+  const [showDashboard, setShowDashboard] = useState(true)
+  
   // User Interaction State
   const [selectedAnswer, setSelectedAnswer] = useState(null)
   const [hasAnswered, setHasAnswered] = useState(false)
   const [timer, setTimer] = useState(30)
   const [playerId, setPlayerId] = useState('')
+  const [showHostMenu, setShowHostMenu] = useState(false)
+  const [showStatsToPlayers, setShowStatsToPlayers] = useState(false)
+  
+  // Real-time quiz statistics (after currentQuestionIndex is declared)
+  const {
+    answerStats: statsAnswerStats,
+    leaderboard: statsLeaderboard,
+    loading: statsLoading,
+    error: statsError,
+    participationRate,
+    accuracyRate,
+    totalAnswers
+  } = useQuizStatistics(quizId, currentQuestionIndex)
 
   // Initialize Quiz Room
   useEffect(() => {
@@ -116,12 +138,19 @@ const QuizRoom = () => {
             setSelectedAnswer(null)
             setHasAnswered(false)
             setTimer(30)
+            // Refresh leaderboard when question changes to ensure consistency
+            setTimeout(() => loadPlayers(), 1000)
           }
           
           // Reset timer when quiz becomes active or results are hidden
           if ((newState === 'active' && quizState !== 'active') || 
               (showResults && !newShowResults)) {
             setTimer(30)
+          }
+          
+          // Refresh leaderboard when results are shown to ensure consistency
+          if (newShowResults && !showResults) {
+            setTimeout(() => loadPlayers(), 500)
           }
           
           setQuizState(newState)
@@ -137,6 +166,26 @@ const QuizRoom = () => {
 
     return () => unsubscribeQuiz()
   }, [quiz, quizId, currentQuestionIndex, quizState, showResults])
+  
+  // Real-time Players/Leaderboard Updates
+  useEffect(() => {
+    if (!quiz || quizState === 'waiting') return
+
+    console.log('👥 Setting up real-time player listeners')
+    
+    // Listen for changes in the players collection
+    const unsubscribePlayers = onSnapshot(
+      collection(db, `quizzes/${quizId}/players`),
+      (snapshot) => {
+        console.log('📊 Players collection updated')
+        // Refresh leaderboard when player data changes
+        loadPlayers()
+      },
+      (err) => console.warn('👥 Player sync error:', err.message)
+    )
+
+    return () => unsubscribePlayers()
+  }, [quiz, quizId, quizState])
 
   // Timer Logic
   useEffect(() => {
@@ -147,7 +196,28 @@ const QuizRoom = () => {
       
       return () => clearInterval(interval)
     }
-  }, [timer, quizState, showResults, hasAnswered])
+    
+    // Auto-submit for players when timer reaches 0
+    if (!isHost && timer === 0 && !hasAnswered && quizState === 'active' && !showResults) {
+      setHasAnswered(true)
+      if (selectedAnswer !== null) {
+        // Submit the selected answer
+        submitAnswer()
+      }
+    }
+  }, [timer, quizState, showResults, hasAnswered, isHost, selectedAnswer])
+  
+  // Close host menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showHostMenu && !event.target.closest('.host-menu-container')) {
+        setShowHostMenu(false)
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showHostMenu])
 
   // Load Players Data
   const loadPlayers = async () => {
@@ -340,78 +410,228 @@ const QuizRoom = () => {
           <h3 className="text-3xl font-bold text-gray-900 leading-relaxed">
             {currentQuestion.text}
           </h3>
+          
+          {/* Prominent Timer for Players */}
+          {!isHost && quizState === 'active' && !showResults && (
+            <div className="mt-6 flex justify-center">
+              {!hasAnswered ? (
+                <div className={`inline-flex items-center space-x-2 px-6 py-3 rounded-full font-bold text-xl ${
+                  timer <= 0 ? 'bg-red-200 text-red-800' :
+                  timer <= 5 ? 'bg-red-100 text-red-700 animate-pulse' : 
+                  timer <= 10 ? 'bg-yellow-100 text-yellow-700' : 
+                  'bg-blue-100 text-blue-700'
+                }`}>
+                  <Clock className="w-6 h-6" />
+                  <span>{timer <= 0 ? 'Time\'s up!' : `${timer}s remaining`}</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center space-x-2 px-6 py-3 rounded-full font-bold text-xl bg-green-100 text-green-700">
+                  <CheckCircle className="w-6 h-6" />
+                  <span>Answer submitted!</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Answer Options */}
         {currentQuestion.type === 'mcq' && (
           <div className="space-y-4 mb-8">
-            {currentQuestion.options.map((option, index) => (
-              <motion.button
-                key={index}
-                whileHover={{ scale: isHost ? 1 : 1.02 }}
-                whileTap={{ scale: isHost ? 1 : 0.98 }}
-                onClick={() => !isHost && !hasAnswered && setSelectedAnswer(index)}
-                disabled={isHost || hasAnswered}
-                className={`w-full p-6 text-left rounded-xl border-2 transition-all duration-200 ${
-                  selectedAnswer === index && !isHost
-                    ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50'
-                } ${
-                  showResults && index === currentQuestion.correctAnswer
-                    ? 'border-green-500 bg-green-50 text-green-700'
-                    : ''
-                } ${
-                  showResults && selectedAnswer === index && index !== currentQuestion.correctAnswer
-                    ? 'border-red-500 bg-red-50 text-red-700'
-                    : ''
-                } ${
-                  isHost ? 'cursor-default opacity-75' : ''
-                }`}
-              >
-                <div className="flex items-center space-x-4">
-                  <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${
+            {currentQuestion.options.map((option, index) => {
+              // Only show stats to host OR to players if host has enabled stats visibility AND results are shown
+              const shouldShowStats = isHost || (showStatsToPlayers && showResults)
+              const totalResponses = shouldShowStats ? Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0) : 0
+              const optionCount = shouldShowStats ? (statsAnswerStats ? (statsAnswerStats[index] || 0) : 0) : 0
+              const percentage = shouldShowStats && totalResponses > 0 ? Math.round((optionCount / totalResponses) * 100) : 0
+              
+              // Color scheme for percentage bars
+              const colors = [
+                'from-blue-500 to-blue-600',
+                'from-purple-500 to-purple-600', 
+                'from-pink-500 to-pink-600',
+                'from-green-500 to-green-600',
+                'from-orange-500 to-orange-600',
+                'from-red-500 to-red-600',
+              ]
+              
+              const correctColor = 'from-emerald-500 to-emerald-600'
+              const isCorrectAnswer = showResults && index === currentQuestion.correctAnswer
+              const barColor = isCorrectAnswer ? correctColor : colors[index % colors.length]
+              
+              return (
+                <motion.button
+                  key={index}
+                  whileHover={{ scale: isHost ? 1 : 1.02 }}
+                  whileTap={{ scale: isHost ? 1 : 0.98 }}
+                  onClick={() => !isHost && !hasAnswered && setSelectedAnswer(index)}
+                  disabled={isHost || hasAnswered}
+                  className={`relative w-full rounded-xl border-2 transition-all duration-200 overflow-hidden ${
                     selectedAnswer === index && !isHost
-                      ? 'border-primary-500 bg-primary-500 text-white'
-                      : 'border-gray-300'
-                  }`}>
-                    {String.fromCharCode(65 + index)}
+                      ? 'border-primary-500 shadow-lg shadow-primary-200/50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  } ${
+                    isCorrectAnswer
+                      ? 'border-emerald-300 shadow-lg shadow-emerald-200/50'
+                      : ''
+                  } ${
+                    showResults && selectedAnswer === index && index !== currentQuestion.correctAnswer
+                      ? 'border-red-300 shadow-lg shadow-red-200/50'
+                      : ''
+                  } ${
+                    isHost ? 'cursor-default' : 'cursor-pointer'
+                  }`}
+                >
+                  {/* Background percentage fill bar - only show when results should be visible */}
+                  {shouldShowStats && showResults && totalResponses > 0 && (
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percentage}%` }}
+                      transition={{ delay: index * 0.1 + 0.3, duration: 1.2, ease: "easeOut" }}
+                      className={`absolute inset-y-0 left-0 bg-gradient-to-r ${barColor} opacity-20`}
+                    />
+                  )}
+                  
+                  {/* Content */}
+                  <div className="relative z-10 flex items-center justify-between p-4 min-h-[70px]">
+                    <div className="flex items-center space-x-4 flex-1">
+                      <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-sm ${
+                        selectedAnswer === index && !isHost
+                          ? 'border-primary-500 bg-primary-500 text-white'
+                          : isCorrectAnswer
+                          ? 'border-emerald-500 bg-emerald-500 text-white'
+                          : 'border-gray-300 bg-white text-gray-700'
+                      }`}>
+                        {String.fromCharCode(65 + index)}
+                      </div>
+                      <span className={`text-lg font-medium flex-1 text-left ${
+                        isCorrectAnswer ? 'text-emerald-800 font-semibold' : 'text-gray-900'
+                      }`}>
+                        {option}
+                      </span>
+                    </div>
+                    
+                    {/* Show percentage and count when results should be visible */}
+                    {shouldShowStats && showResults && totalResponses > 0 && (
+                      <div className="flex items-center space-x-3">
+                        {isCorrectAnswer && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: index * 0.1 + 0.5, type: "spring", stiffness: 300 }}
+                          >
+                            <CheckCircle className="w-5 h-5 text-emerald-600" />
+                          </motion.div>
+                        )}
+                        
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: index * 0.1 + 0.7, duration: 0.3 }}
+                          className="text-right"
+                        >
+                          <div className={`text-xl font-bold ${
+                            isCorrectAnswer ? 'text-emerald-700' : 'text-gray-800'
+                          }`}>
+                            {percentage}%
+                          </div>
+                          <div className={`text-xs ${
+                            isCorrectAnswer ? 'text-emerald-600' : 'text-gray-600'
+                          }`}>
+                            ({optionCount} votes)
+                          </div>
+                        </motion.div>
+                      </div>
+                    )}
                   </div>
-                  <span className="text-xl font-medium">{option}</span>
-                </div>
-              </motion.button>
-            ))}
+                </motion.button>
+              )
+            })}
           </div>
         )}
 
         {/* True/False Questions */}
         {currentQuestion.type === 'truefalse' && (
           <div className="grid grid-cols-2 gap-6 mb-8">
-            {['True', 'False'].map((option, index) => (
-              <motion.button
-                key={index}
-                whileHover={{ scale: isHost ? 1 : 1.02 }}
-                whileTap={{ scale: isHost ? 1 : 0.98 }}
-                onClick={() => !isHost && !hasAnswered && setSelectedAnswer(index)}
-                disabled={isHost || hasAnswered}
-                className={`p-8 text-center rounded-xl border-2 transition-all duration-200 ${
-                  selectedAnswer === index && !isHost
-                    ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50'
-                } ${
-                  showResults && index === currentQuestion.correctAnswer
-                    ? 'border-green-500 bg-green-50 text-green-700'
-                    : ''
-                } ${
-                  showResults && selectedAnswer === index && index !== currentQuestion.correctAnswer
-                    ? 'border-red-500 bg-red-50 text-red-700'
-                    : ''
-                } ${
-                  isHost ? 'cursor-default opacity-75' : ''
-                }`}
-              >
-                <span className="text-2xl font-bold">{option}</span>
-              </motion.button>
-            ))}
+            {['True', 'False'].map((option, index) => {
+              // Only show stats to host OR to players if host has enabled stats visibility AND results are shown
+              const shouldShowStats = isHost || (showStatsToPlayers && showResults)
+              const totalResponses = shouldShowStats ? Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0) : 0
+              const optionCount = shouldShowStats ? (statsAnswerStats ? (statsAnswerStats[index] || 0) : 0) : 0
+              const percentage = shouldShowStats && totalResponses > 0 ? Math.round((optionCount / totalResponses) * 100) : 0
+              
+              const correctColor = 'from-emerald-500 to-emerald-600'
+              const falseColor = 'from-red-500 to-red-600'
+              const trueColor = 'from-blue-500 to-blue-600'
+              const isCorrectAnswer = showResults && index === currentQuestion.correctAnswer
+              const barColor = isCorrectAnswer ? correctColor : (index === 0 ? trueColor : falseColor)
+              
+              return (
+                <motion.button
+                  key={index}
+                  whileHover={{ scale: isHost ? 1 : 1.02 }}
+                  whileTap={{ scale: isHost ? 1 : 0.98 }}
+                  onClick={() => !isHost && !hasAnswered && setSelectedAnswer(index)}
+                  disabled={isHost || hasAnswered}
+                  className={`relative rounded-xl border-2 transition-all duration-200 overflow-hidden ${
+                    selectedAnswer === index && !isHost
+                      ? 'border-primary-500 shadow-lg shadow-primary-200/50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  } ${
+                    isCorrectAnswer
+                      ? 'border-emerald-300 shadow-lg shadow-emerald-200/50'
+                      : ''
+                  } ${
+                    showResults && selectedAnswer === index && index !== currentQuestion.correctAnswer
+                      ? 'border-red-300 shadow-lg shadow-red-200/50'
+                      : ''
+                  } ${
+                    isHost ? 'cursor-default' : 'cursor-pointer'
+                  }`}
+                >
+                  {/* Background percentage fill bar */}
+                  {shouldShowStats && showResults && totalResponses > 0 && (
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percentage}%` }}
+                      transition={{ delay: index * 0.2 + 0.3, duration: 1.2, ease: "easeOut" }}
+                      className={`absolute inset-y-0 left-0 bg-gradient-to-r ${barColor} opacity-20`}
+                    />
+                  )}
+                  
+                  {/* Content */}
+                  <div className="relative z-10 p-6 min-h-[120px] flex flex-col items-center justify-center">
+                    <span className={`text-2xl font-bold mb-2 ${
+                      isCorrectAnswer ? 'text-emerald-700' : 'text-gray-900'
+                    }`}>
+                      {option}
+                    </span>
+                    
+                    {shouldShowStats && showResults && totalResponses > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: index * 0.2 + 0.7, duration: 0.3 }}
+                        className="flex items-center space-x-2"
+                      >
+                        {isCorrectAnswer && (
+                          <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        )}
+                        <span className={`text-lg font-bold ${
+                          isCorrectAnswer ? 'text-emerald-700' : 'text-gray-700'
+                        }`}>
+                          {percentage}%
+                        </span>
+                        <span className={`text-sm ${
+                          isCorrectAnswer ? 'text-emerald-600' : 'text-gray-600'
+                        }`}>
+                          ({optionCount})
+                        </span>
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.button>
+              )
+            })}
           </div>
         )}
 
@@ -576,39 +796,211 @@ const QuizRoom = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white p-6 shadow-lg">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <button
-                onClick={() => navigate('/')}
-                className="btn btn-ghost text-white hover:bg-white/20 mb-2"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                Leave Quiz
-              </button>
-              <h1 className="text-3xl font-bold">{quiz.title}</h1>
-              <p className="text-white/80">{quiz.description}</p>
-            </div>
-            
-            <div className="flex items-center space-x-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold">{players.length}</div>
-                <div className="text-sm text-white/80">Players</div>
+      {/* Enhanced Quiz Navigation Header */}
+      <div className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Top Row - Navigation */}
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-4">
+              {/* Logo and Back Button */}
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => navigate('/')}
+                  className="flex items-center space-x-2 text-white hover:bg-white/20 px-3 py-2 rounded-xl transition-colors duration-200"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                  <span className="hidden sm:block">QuizVerse</span>
+                </button>
               </div>
               
-              {quizState === 'active' && !showResults && !isHost && (
-                <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
-                  <div className="flex items-center space-x-2">
-                    <Clock className="w-5 h-5" />
-                    <span className="text-xl font-bold">{timer}s</span>
+              {/* Quiz Progress Indicator */}
+              {quizState === 'active' && (
+                <div className="hidden md:flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                  <div className="text-sm font-medium">
+                    Question {currentQuestionIndex + 1} of {quiz.questions.length}
+                  </div>
+                  <div className="w-24 bg-white/20 rounded-full h-2">
+                    <div 
+                      className="bg-white rounded-full h-2 transition-all duration-300"
+                      style={{ width: `${((currentQuestionIndex + 1) / quiz.questions.length) * 100}%` }}
+                    />
                   </div>
                 </div>
               )}
+            </div>
+            
+            {/* Right Side Controls */}
+            <div className="flex items-center space-x-4">
+              {/* Timer Display - Show to both host and players during active questions */}
+              {quizState === 'active' && !showResults && (
+                <div className="flex items-center space-x-2 bg-white/20 backdrop-blur-sm rounded-xl px-3 py-2">
+                  <Clock className="w-4 h-4" />
+                  <span className="font-bold text-sm">{timer}s</span>
+                  {isHost && (
+                    <span className="text-xs text-white/60">remaining</span>
+                  )}
+                </div>
+              )}
               
-              <div className="text-sm bg-white/20 px-3 py-1 rounded-full">
+              {/* Players Count */}
+              <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2">
+                <Users className="w-4 h-4" />
+                <span className="text-sm font-medium">{players.length}</span>
+              </div>
+              
+              {/* User Role Badge */}
+              <div className={`text-xs px-3 py-1 rounded-full font-medium ${
+                isHost 
+                  ? 'bg-yellow-400/20 text-yellow-100 border border-yellow-300/30' 
+                  : 'bg-white/20 text-white border border-white/30'
+              }`}>
                 {isHost ? '👑 Host' : '👤 Player'}
+              </div>
+              
+              {/* Host Quick Actions */}
+              {isHost && quizState === 'waiting' && (
+                <button
+                  onClick={startQuiz}
+                  className="hidden sm:flex items-center space-x-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl transition-colors duration-200 font-medium"
+                >
+                  <Play className="w-4 h-4" />
+                  <span>Start</span>
+                </button>
+              )}
+              
+              {/* Host Menu Dropdown */}
+              {isHost && (
+                <div className="relative host-menu-container">
+                  <button
+                    onClick={() => setShowHostMenu(!showHostMenu)}
+                    className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 transition-colors duration-200"
+                  >
+                    <MoreVertical className="w-5 h-5 text-white" />
+                  </button>
+                  
+                  <AnimatePresence>
+                    {showHostMenu && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50"
+                      >
+                        {quizState === 'waiting' && (
+                          <button
+                            onClick={() => { startQuiz(); setShowHostMenu(false) }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                          >
+                            <Play className="w-4 h-4 text-green-600" />
+                            <span>Start Quiz</span>
+                          </button>
+                        )}
+                        
+                        {quizState === 'active' && !showResults && (
+                          <button
+                            onClick={() => { showQuestionResults(); setShowHostMenu(false) }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                          >
+                            <Eye className="w-4 h-4 text-blue-600" />
+                            <span>Show Results</span>
+                          </button>
+                        )}
+                        
+                        {quizState === 'active' && showResults && (
+                          <button
+                            onClick={() => { nextQuestion(); setShowHostMenu(false) }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                          >
+                            <Play className="w-4 h-4 text-primary-600" />
+                            <span>{currentQuestionIndex < quiz.questions.length - 1 ? 'Next Question' : 'Finish Quiz'}</span>
+                          </button>
+                        )}
+                        
+                        {quizState === 'finished' && !showLeaderboard && (
+                          <button
+                            onClick={() => { showFinalLeaderboard(); setShowHostMenu(false) }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                          >
+                            <BarChart3 className="w-4 h-4 text-purple-600" />
+                            <span>Show Final Results</span>
+                          </button>
+                        )}
+                        
+                        <div className="border-t border-gray-100 my-1"></div>
+                        
+                        <button
+                          onClick={() => { 
+                            setShowStatsToPlayers(!showStatsToPlayers); 
+                            setShowHostMenu(false);
+                            success(showStatsToPlayers ? 'Stats hidden from players' : 'Stats now visible to players');
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                        >
+                          <BarChart3 className={`w-4 h-4 ${
+                            showStatsToPlayers ? 'text-green-600' : 'text-gray-600'
+                          }`} />
+                          <span>{showStatsToPlayers ? 'Hide Stats from Players' : 'Show Stats to Players'}</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => { loadPlayers(); setShowHostMenu(false) }}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                        >
+                          <RotateCcw className="w-4 h-4 text-gray-600" />
+                          <span>Refresh Players</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => { navigate('/'); setShowHostMenu(false) }}
+                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          <span>End & Leave Quiz</span>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Bottom Row - Quiz Info */}
+          <div className="pb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex-1">
+                <h1 className="text-2xl sm:text-3xl font-bold mb-1">{quiz.title}</h1>
+                <p className="text-white/80 text-sm sm:text-base">{quiz.description}</p>
+                
+                {/* Mobile Progress Indicator */}
+                {quizState === 'active' && (
+                  <div className="md:hidden mt-3 flex items-center space-x-2">
+                    <span className="text-sm font-medium text-white/90">
+                      {currentQuestionIndex + 1}/{quiz.questions.length}
+                    </span>
+                    <div className="flex-1 bg-white/20 rounded-full h-2">
+                      <div 
+                        className="bg-white rounded-full h-2 transition-all duration-300"
+                        style={{ width: `${((currentQuestionIndex + 1) / quiz.questions.length) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Quiz State Indicator */}
+              <div className="mt-4 sm:mt-0 flex items-center">
+                <div className={`flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium ${
+                  quizState === 'waiting' ? 'bg-blue-500/20 text-blue-100' :
+                  quizState === 'active' ? 'bg-green-500/20 text-green-100' :
+                  quizState === 'finished' ? 'bg-purple-500/20 text-purple-100' :
+                  'bg-gray-500/20 text-gray-100'
+                }`}>
+                  {quizState === 'waiting' && <><Users className="w-4 h-4" /> Waiting</>}
+                  {quizState === 'active' && <><Play className="w-4 h-4" /> Active</>}
+                  {quizState === 'finished' && <><Trophy className="w-4 h-4" /> Finished</>}
+                </div>
               </div>
             </div>
           </div>
@@ -616,12 +1008,43 @@ const QuizRoom = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <AnimatePresence mode="wait">
-          {quizState === 'waiting' && renderWaitingScreen()}
-          {quizState === 'active' && renderActiveQuestion()}
-          {quizState === 'finished' && renderFinishedScreen()}
-        </AnimatePresence>
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        {(quizState === 'active' || quizState === 'finished') ? (
+          <div className="grid gap-6 lg:grid-cols-5">
+            {/* Quiz Content */}
+            <div className="lg:col-span-3">
+              <AnimatePresence mode="wait">
+                {quizState === 'active' && renderActiveQuestion()}
+                {quizState === 'finished' && renderFinishedScreen()}
+              </AnimatePresence>
+            </div>
+            
+            {/* Analytics Dashboard - Compact Side Panel */}
+            <div className="lg:col-span-2">
+              <div className="sticky top-24">
+                <QuizDashboard
+                  quiz={quiz}
+                  currentQuestion={quiz?.questions[currentQuestionIndex]}
+                  currentQuestionIndex={currentQuestionIndex}
+                  showResults={showResults}
+                  answerStats={(isHost || (showStatsToPlayers && showResults)) ? (statsAnswerStats || {}) : {}}
+                  leaderboard={statsLeaderboard.length > 0 ? statsLeaderboard : leaderboard}
+                  currentPlayerId={playerId}
+                  isHost={isHost}
+                  showStatsToPlayers={showStatsToPlayers}
+                  className="transition-all duration-300"
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          // Waiting Screen - Full Width
+          <div className="max-w-2xl mx-auto">
+            <AnimatePresence mode="wait">
+              {quizState === 'waiting' && renderWaitingScreen()}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
     </div>
   )
