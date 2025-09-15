@@ -46,7 +46,7 @@ const Navbar = () => {
             >
               <Brain className="h-8 w-8 text-primary-500" />
             </motion.div>
-            <span className="text-xl font-bold text-gradient">QuizVerse</span>
+            <span className="text-xl font-bold text-gradient">Quizzer</span>
           </Link>
 
           {/* Desktop Navigation */}

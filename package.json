@@ -1,5 +1,5 @@
 {
-  "name": "quizverse",
+  "name": "quizzer",
   "version": "1.0.0",
   "description": "Interactive Quiz Platform with Real-time Features",
   "type": "module",
@@ -42,6 +42,6 @@
     "real-time",
     "interactive"
   ],
-  "author": "QuizVerse Team",
+  "author": "Quizzer Team",
   "license": "MIT"
 }

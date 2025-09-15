@@ -1,4 +1,4 @@
-# QuizVerse 🧠
+# Quizzer 🧠
 
 A modern, interactive quiz platform built with React, Firebase, and beautiful animations. Create, share, and play quizzes in real-time with a stunning user interface.
 
@@ -35,7 +35,7 @@ A modern, interactive quiz platform built with React, Firebase, and beautiful an
 
 ```bash
 git clone <your-repo-url>
-cd quizverse
+cd quizzer
 ```
 
 ### 2. Install Dependencies

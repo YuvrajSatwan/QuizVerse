@@ -121,7 +121,7 @@ const Home = () => {
             </motion.div>
             <h1 className="text-5xl md:text-7xl font-bold mb-6">
               Welcome to{' '}
-              <span className="text-gradient">QuizVerse</span>
+              <span className="text-gradient">Quizzer</span>
             </h1>
             <p className="text-xl md:text-2xl text-gray-600 mb-12 max-w-2xl mx-auto leading-relaxed">
               Transform learning into an adventure. 
@@ -293,7 +293,7 @@ const Home = () => {
                 <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center">
                   <Brain className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-xl font-bold text-white">QuizVerse</span>
+                <span className="text-xl font-bold text-white">Quizzer</span>
               </div>
               <p className="text-gray-400 mb-6 leading-relaxed">
                 Create engaging, interactive quizzes that bring learning to life. Perfect for educators, trainers, and anyone who loves to share knowledge.
@@ -348,7 +348,7 @@ const Home = () => {
           {/* Bottom Bar */}
           <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
             <p className="text-gray-400 text-sm">
-              © 2024 QuizVerse. All rights reserved. Made with ❤️ for better learning.
+              © 2024 Quizzer. All rights reserved. Made with ❤️ for better learning.
             </p>
             <div className="flex items-center space-x-6 mt-4 md:mt-0">
               <span className="text-sm text-gray-400">Powered by modern web technologies</span>

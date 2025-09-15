@@ -359,7 +359,7 @@ const CreateQuiz = () => {
                   <Sparkles className="w-8 h-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">QuizVerse</h1>
+                  <h1 className="text-3xl font-bold text-gray-900">Quizzer</h1>
                   <p className="text-primary-600 font-medium">Create & Share</p>
                 </div>
               </div>
@@ -371,7 +371,7 @@ const CreateQuiz = () => {
               </h2>
               
               <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-                Join thousands of educators and creators who trust QuizVerse to build engaging, interactive learning experiences.
+                Join thousands of educators and creators who trust Quizzer to build engaging, interactive learning experiences.
               </p>
 
               {/* Benefits List */}
@@ -484,7 +484,7 @@ const CreateQuiz = () => {
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900">QuizVerse</span>
+              <span className="text-xl font-bold text-gray-900">Quizzer</span>
             </div>
             <button
               onClick={() => navigate('/')}
