@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -62,6 +62,11 @@ const CreateQuiz = () => {
   const [quizCode, setQuizCode] = useState(null)
   const [copySuccess, setCopySuccess] = useState(false)
   
+  // Auto-save states
+  const [autoSaveStatus, setAutoSaveStatus] = useState('saved') // 'saving', 'saved', 'error'
+  const [lastSaved, setLastSaved] = useState(null)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  
   // Debug: Log when quizCode changes
   console.log('Current quizCode state:', quizCode)
   
@@ -69,6 +74,65 @@ const CreateQuiz = () => {
   useEffect(() => {
     console.log('quizCode changed to:', quizCode)
   }, [quizCode])
+
+  // Load draft from localStorage on component mount
+  useEffect(() => {
+    const savedDraft = localStorage.getItem('quizDraft')
+    if (savedDraft) {
+      try {
+        const { formData: savedFormData, questions: savedQuestions, timestamp } = JSON.parse(savedDraft)
+        // Only load if draft is less than 24 hours old
+        if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
+          setFormData(savedFormData)
+          setQuestions(savedQuestions)
+          setLastSaved(new Date(timestamp))
+          setHasUnsavedChanges(true)
+          console.log('📝 Loaded quiz draft from localStorage')
+        } else {
+          localStorage.removeItem('quizDraft')
+        }
+      } catch (error) {
+        console.error('Failed to load quiz draft:', error)
+        localStorage.removeItem('quizDraft')
+      }
+    }
+  }, [])
+
+  // Auto-save functionality
+  const saveToLocalStorage = useCallback(() => {
+    try {
+      const draftData = {
+        formData,
+        questions,
+        timestamp: Date.now()
+      }
+      localStorage.setItem('quizDraft', JSON.stringify(draftData))
+      setAutoSaveStatus('saved')
+      setLastSaved(new Date())
+      setHasUnsavedChanges(false)
+      console.log('💾 Auto-saved quiz draft')
+    } catch (error) {
+      console.error('Failed to save quiz draft:', error)
+      setAutoSaveStatus('error')
+    }
+  }, [formData, questions])
+
+  // Auto-save every 30 seconds when there are unsaved changes
+  useEffect(() => {
+    if (!hasUnsavedChanges) return
+
+    setAutoSaveStatus('saving')
+    const timeoutId = setTimeout(() => {
+      saveToLocalStorage()
+    }, 2000) // Save after 2 seconds of inactivity
+
+    return () => clearTimeout(timeoutId)
+  }, [formData, questions, hasUnsavedChanges, saveToLocalStorage])
+
+  // Mark as unsaved when data changes
+  useEffect(() => {
+    setHasUnsavedChanges(true)
+  }, [formData, questions])
 
   const addQuestion = () => {
     const newQuestion = {
@@ -102,6 +166,52 @@ const CreateQuiz = () => {
       }
       return q
     }))
+  }
+
+  // Drag & Drop functionality
+  const [draggedItem, setDraggedItem] = useState(null)
+  const [dragOverIndex, setDragOverIndex] = useState(null)
+
+  const handleDragStart = (e, index) => {
+    setDraggedItem(index)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/html', e.target.outerHTML)
+  }
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (draggedItem !== index) {
+      setDragOverIndex(index)
+    }
+  }
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null)
+  }
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault()
+    if (draggedItem !== null && draggedItem !== dropIndex) {
+      const newQuestions = [...questions]
+      const draggedQuestion = newQuestions[draggedItem]
+      
+      // Remove dragged item
+      newQuestions.splice(draggedItem, 1)
+      
+      // Insert at new position
+      newQuestions.splice(dropIndex, 0, draggedQuestion)
+      
+      setQuestions(newQuestions)
+    }
+    
+    setDraggedItem(null)
+    setDragOverIndex(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedItem(null)
+    setDragOverIndex(null)
   }
 
   const handleSubmit = async (e) => {
@@ -171,6 +281,12 @@ const CreateQuiz = () => {
       
       setQuizCode(code)
       console.log('Quiz code state set to:', code)
+      
+      // Clear the draft since quiz was successfully created
+      localStorage.removeItem('quizDraft')
+      setHasUnsavedChanges(false)
+      setAutoSaveStatus('saved')
+      
       success('Quiz created successfully!')
     } catch (err) {
       error('Failed to create quiz. Please try again.')
@@ -572,13 +688,47 @@ const CreateQuiz = () => {
                 className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden"
               >
                 <div className="bg-gradient-to-r from-primary-500 to-primary-600 px-8 py-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                      <BookOpen className="w-5 h-5 text-white" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                        <BookOpen className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-white">Quiz Information</h2>
+                        <p className="text-primary-100 text-sm">Give your quiz a name and description</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-white">Quiz Information</h2>
-                      <p className="text-primary-100 text-sm">Give your quiz a name and description</p>
+                    
+                    {/* Auto-save Status Indicator */}
+                    <div className="flex items-center space-x-2 text-white/90">
+                      {autoSaveStatus === 'saving' && (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          <span className="text-sm font-medium">Saving...</span>
+                        </>
+                      )}
+                      {autoSaveStatus === 'saved' && lastSaved && (
+                        <>
+                          <div className="w-4 h-4 bg-green-400 rounded-full flex items-center justify-center">
+                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <span className="text-sm font-medium">
+                            Saved {new Date(lastSaved).toLocaleTimeString()}
+                          </span>
+                        </>
+                      )}
+                      {autoSaveStatus === 'error' && (
+                        <>
+                          <div className="w-4 h-4 bg-red-400 rounded-full flex items-center justify-center">
+                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <span className="text-sm font-medium text-red-200">Save failed</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -678,27 +828,16 @@ const CreateQuiz = () => {
                 className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden"
               >
                 <div className="bg-gradient-to-r from-purple-500 to-purple-600 px-8 py-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                        <HelpCircle className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-bold text-white">
-                          Questions ({questions.length})
-                        </h2>
-                        <p className="text-purple-100 text-sm">Add engaging questions to your quiz</p>
-                      </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                      <HelpCircle className="w-5 h-5 text-white" />
                     </div>
-                    
-                    <button
-                      type="button"
-                      onClick={addQuestion}
-                      className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl transition-all duration-200 backdrop-blur-sm border border-white/20"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span className="font-medium">Add Question</span>
-                    </button>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">
+                        Questions ({questions.length})
+                      </h2>
+                      <p className="text-purple-100 text-sm">Add engaging questions to your quiz</p>
+                    </div>
                   </div>
                 </div>
                 
@@ -722,6 +861,18 @@ const CreateQuiz = () => {
                     </div>
                   ) : (
                     <div className="space-y-6">
+                      {/* Drag & Drop Hint */}
+                      {questions.length > 1 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex items-center space-x-2 text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3"
+                        >
+                          <GripVertical className="w-4 h-4 text-blue-500" />
+                          <span>💡 Drag questions by the grip handle to reorder them</span>
+                        </motion.div>
+                      )}
+                      
                       <AnimatePresence>
                         {questions.map((question, index) => (
                           <motion.div
@@ -729,7 +880,19 @@ const CreateQuiz = () => {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                            className="bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-2xl border-2 border-gray-200 overflow-hidden group hover:shadow-lg transition-all duration-300"
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, index)}
+                            onDragEnd={handleDragEnd}
+                            className={`bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-2xl border-2 overflow-hidden group transition-all duration-300 cursor-move ${
+                              draggedItem === index 
+                                ? 'border-primary-500 shadow-2xl scale-105 opacity-75 rotate-2'
+                                : dragOverIndex === index 
+                                ? 'border-primary-400 shadow-lg scale-102 border-dashed bg-primary-50'
+                                : 'border-gray-200 hover:shadow-lg hover:border-primary-200'
+                            }`}
                           >
                             {/* Question Header */}
                             <div className="bg-white px-6 py-4 border-b border-gray-200">
@@ -740,15 +903,19 @@ const CreateQuiz = () => {
                                   </div>
                                   <div>
                                     <h3 className="font-semibold text-gray-900">Question {index + 1}</h3>
-                                    <p className="text-xs text-gray-500 capitalize">{question.type === 'mcq' ? 'Multiple Choice' : question.type === 'truefalse' ? 'True/False' : 'Short Answer'}</p>
+                                    <p className="text-xs text-gray-500 capitalize">{question.type === 'mcq' ? 'Multiple Choice' : question.type === 'truefalse' ? 'True/False' : 'Word Answer'}</p>
                                   </div>
                                 </div>
                                 
                                 <div className="flex items-center space-x-2">
                                   <button
                                     type="button"
-                                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200"
-                                    title="Reorder question"
+                                    className={`p-2 rounded-lg transition-all duration-200 ${
+                                      draggedItem === index 
+                                        ? 'text-primary-600 bg-primary-100'
+                                        : 'text-gray-400 hover:text-primary-600 hover:bg-primary-50'
+                                    }`}
+                                    title="Drag to reorder questions"
                                   >
                                     <GripVertical className="w-4 h-4" />
                                   </button>
@@ -830,16 +997,16 @@ const CreateQuiz = () => {
                                   
                                   <button
                                     type="button"
-                                    onClick={() => updateQuestion(question.id, 'type', 'short')}
+                                    onClick={() => updateQuestion(question.id, 'type', 'word')}
                                     className={`p-4 rounded-2xl border-2 transition-all duration-200 text-center ${
-                                      question.type === 'short'
+                                      question.type === 'word'
                                         ? 'border-primary-500 bg-primary-50 text-primary-700'
                                         : 'border-gray-200 hover:border-gray-300 text-gray-600'
                                     }`}
                                   >
                                     <FileText className="w-5 h-5 mx-auto mb-2" />
-                                    <div className="text-sm font-medium">Short Answer</div>
-                                    <div className="text-xs text-gray-500">Text input</div>
+                                    <div className="text-sm font-medium">Word Answer</div>
+                                    <div className="text-xs text-gray-500">Single word</div>
                                   </button>
                                 </div>
                               </div>
@@ -955,21 +1122,22 @@ const CreateQuiz = () => {
                                 </div>
                               )}
 
-                              {question.type === 'short' && (
+                              {question.type === 'word' && (
                                 <div>
                                   <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-4">
                                     <FileText className="w-4 h-4 text-primary-500" />
-                                    <span>Expected Answer (Optional)</span>
+                                    <span>Correct Answer *</span>
                                   </label>
                                   <input
                                     type="text"
-                                    value={question.options[0] || ''}
-                                    onChange={(e) => updateOption(question.id, 0, e.target.value)}
-                                    className="w-full px-4 py-4 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200 transition-all duration-200 placeholder-gray-400"
-                                    placeholder="e.g., 'The capital of France is Paris'"
+                                    value={question.correctAnswer || ''}
+                                    onChange={(e) => updateQuestion(question.id, 'correctAnswer', e.target.value.trim())}
+                                    className="w-full px-4 py-4 border-2 border-green-300 bg-green-50 focus:border-green-500 focus:ring-4 focus:ring-green-200 rounded-2xl transition-all duration-200 placeholder-gray-400"
+                                    placeholder="e.g., 'Paris' or 'Democracy'"
+                                    required
                                   />
                                   <p className="text-xs text-gray-500 mt-2">
-                                    💡 This helps you evaluate answers, but participants can type freely
+                                    💡 Enter the exact word answer. Answers will be checked case-insensitively
                                   </p>
                                 </div>
                               )}
@@ -977,6 +1145,23 @@ const CreateQuiz = () => {
                           </motion.div>
                         ))}
                       </AnimatePresence>
+                      
+                      {/* Add Question Button - Now at the bottom */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="flex justify-center pt-4"
+                      >
+                        <button
+                          type="button"
+                          onClick={addQuestion}
+                          className="flex items-center space-x-3 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white px-8 py-4 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg font-medium text-lg"
+                        >
+                          <Plus className="w-5 h-5" />
+                          <span>Add Question</span>
+                        </button>
+                      </motion.div>
                     </div>
                   )}
 

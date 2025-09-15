@@ -23,7 +23,7 @@ const QuizDashboard = ({
   leaderboard,
   currentPlayerId,
   isHost = false,
-  showStatsToPlayers = false,
+  // showStatsToPlayers removed - stats show automatically with results
   className = ""
 }) => {
   const [isVisible, setIsVisible] = useState(true)
@@ -33,8 +33,8 @@ const QuizDashboard = ({
 
   if (!quiz) return null
   
-  // For non-host users, only show dashboard if stats are enabled by host
-  const shouldShowDashboard = isHost || showStatsToPlayers
+  // Show dashboard to host, or to players when results are shown
+  const shouldShowDashboard = isHost || showResults
 
   const toggleVisibility = () => setIsVisible(!isVisible)
   const toggleExpanded = () => setIsExpanded(!isExpanded)
@@ -164,16 +164,11 @@ const QuizDashboard = ({
                 isExpanded ? (
                   // Full Dashboard View - Simplified Layout
                   <div className="space-y-4">
-                    {/* Main Stats - Mentimeter Style */}
-                    <OptionDistributionChart
-                      question={currentQuestion}
-                      answerStats={answerStats}
-                      showCorrectAnswer={showResults}
-                      chartType="mentimeter"
-                    />
+                    {/* Main Stats - Disabled since stats are integrated into answer buttons */}
+                    {/* <OptionDistributionChart /> - Removed to avoid duplicates */}
                     
-                    {/* Leaderboard - Compact View */}
-                    {leaderboard.length > 0 && (
+                    {/* Leaderboard - Show when results shown */}
+                    {leaderboard.length > 0 && (isHost || showResults) && (
                       <RealTimeLeaderboard
                         leaderboard={leaderboard}
                         currentPlayerId={currentPlayerId}
@@ -183,7 +178,7 @@ const QuizDashboard = ({
                       />
                     )}
                     
-                    {/* Accuracy Summary - Only when results shown */}
+                    {/* Accuracy Summary - Show when results shown */}
                     {showResults && (
                       <AccuracyChart
                         question={currentQuestion}
@@ -194,14 +189,7 @@ const QuizDashboard = ({
                   </div>
                 ) : (
                   // Collapsed View - Essential metrics only
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
-                      <div className="text-xl font-bold text-blue-600">
-                        {Object.values(answerStats).reduce((sum, count) => sum + count, 0)}
-                      </div>
-                      <div className="text-xs text-gray-600">Responses</div>
-                    </div>
-                    
+                  <div className="grid gap-3 grid-cols-2">
                     <div className="text-center p-3 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg">
                       <div className="text-xl font-bold text-purple-600">
                         {leaderboard.length}

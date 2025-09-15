@@ -55,7 +55,8 @@ const QuizRoom = () => {
   const [timer, setTimer] = useState(30)
   const [playerId, setPlayerId] = useState('')
   const [showHostMenu, setShowHostMenu] = useState(false)
-  const [showStatsToPlayers, setShowStatsToPlayers] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  // Removed showStatsToPlayers - stats now show automatically when results are revealed
   
   // Real-time quiz statistics (after currentQuestionIndex is declared)
   const {
@@ -135,8 +136,15 @@ const QuizRoom = () => {
           
           // Reset answer state when question changes
           if (newQuestionIndex !== currentQuestionIndex) {
-            setSelectedAnswer(null)
+            // Initialize selectedAnswer based on question type
+            const newQuestion = quiz.questions?.[newQuestionIndex]
+            if (newQuestion?.type === 'word') {
+              setSelectedAnswer('')
+            } else {
+              setSelectedAnswer(null)
+            }
             setHasAnswered(false)
+            setIsSubmitting(false)
             setTimer(30)
             // Refresh leaderboard when question changes to ensure consistency
             setTimeout(() => loadPlayers(), 1000)
@@ -200,7 +208,11 @@ const QuizRoom = () => {
     // Auto-submit for players when timer reaches 0
     if (!isHost && timer === 0 && !hasAnswered && quizState === 'active' && !showResults) {
       setHasAnswered(true)
-      if (selectedAnswer !== null) {
+      // Check if there's a valid answer to submit
+      const hasValidAnswer = selectedAnswer !== null && (
+        typeof selectedAnswer === 'string' ? selectedAnswer.trim() !== '' : true
+      )
+      if (hasValidAnswer) {
         // Submit the selected answer
         submitAnswer()
       }
@@ -312,36 +324,57 @@ const QuizRoom = () => {
 
   // PLAYER FUNCTIONS
   const submitAnswer = async () => {
-    if (selectedAnswer === null || hasAnswered || !playerId) {
+    // Check if answer is provided (null for MCQ/True-False, empty string for word questions)
+    const hasValidAnswer = selectedAnswer !== null && (
+      typeof selectedAnswer === 'string' ? selectedAnswer.trim() !== '' : true
+    )
+    
+    if (!hasValidAnswer || hasAnswered || !playerId) {
       if (!playerId) error('Player ID not found. Please rejoin the quiz.')
+      if (!hasValidAnswer) error('Please provide an answer before submitting.')
       return
     }
     
+    // Immediately update UI for instant feedback
+    setIsSubmitting(true)
+    setHasAnswered(true)
+    success('Answer submitted!')
+    
     try {
       const currentQuestion = quiz.questions[currentQuestionIndex]
-      const isCorrect = selectedAnswer === currentQuestion.correctAnswer
+      
+      // Handle case-insensitive comparison for word questions
+      let isCorrect = false
+      if (currentQuestion.type === 'word') {
+        isCorrect = selectedAnswer?.toString().toLowerCase() === currentQuestion.correctAnswer?.toLowerCase()
+      } else {
+        isCorrect = selectedAnswer === currentQuestion.correctAnswer
+      }
+      
       const timeBonus = Math.max(0, Math.floor(timer / 2))
       const totalScore = isCorrect ? 100 + timeBonus : 0
       
-      // Submit answer to Firebase
-      await submitAnswerToContext(quizId, playerId, currentQuestionIndex, selectedAnswer, isCorrect, timeBonus)
-      
-      setHasAnswered(true)
-      
-      if (isCorrect) {
-        success(`Correct! +${totalScore} points`)
-      } else {
-        success('Answer submitted!')
-      }
-      
       console.log(`✅ Answer submitted: ${selectedAnswer}, Correct: ${isCorrect}, Score: ${totalScore}`)
       
-      // Refresh leaderboard after answer submission
-      await loadPlayers()
+      // Submit answer to Firebase (non-blocking UI)
+      submitAnswerToContext(quizId, playerId, currentQuestionIndex, selectedAnswer, isCorrect, timeBonus)
+        .then(() => {
+          // Refresh leaderboard after successful submission (background task)
+          loadPlayers()
+          setIsSubmitting(false)
+        })
+        .catch((err) => {
+          console.error('Failed to submit answer:', err)
+          error('Failed to submit answer. Please try again.')
+          setHasAnswered(false) // Allow retry on failure
+          setIsSubmitting(false)
+        })
+        
     } catch (err) {
-      console.error('Failed to submit answer:', err)
+      console.error('Failed to process answer:', err)
       error('Failed to submit answer')
       setHasAnswered(false)
+      setIsSubmitting(false)
     }
   }
 
@@ -434,12 +467,55 @@ const QuizRoom = () => {
           )}
         </div>
 
+        {/* Host Results Summary */}
+        {isHost && showResults && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl"
+          >
+            <div className="flex items-center justify-center space-x-8 text-sm">
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="font-medium text-gray-700">Correct:</span>
+                <span className="font-bold text-green-600">
+                  {(statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                <span className="font-medium text-gray-700">Wrong:</span>
+                <span className="font-bold text-red-600">
+                  {Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0) - ((statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0)}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="font-medium text-gray-700">Total:</span>
+                <span className="font-bold text-blue-600">
+                  {Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="font-medium text-gray-700">Accuracy:</span>
+                <span className="font-bold text-purple-600">
+                  {(() => {
+                    const total = Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)
+                    const correct = (statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0
+                    return total > 0 ? Math.round((correct / total) * 100) : 0
+                  })()}%
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Answer Options */}
         {currentQuestion.type === 'mcq' && (
           <div className="space-y-4 mb-8">
             {currentQuestion.options.map((option, index) => {
-              // Only show stats to host OR to players if host has enabled stats visibility AND results are shown
-              const shouldShowStats = isHost || (showStatsToPlayers && showResults)
+              // Show stats to host always, to players when results are shown
+              const shouldShowStats = isHost || showResults
               const totalResponses = shouldShowStats ? Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0) : 0
               const optionCount = shouldShowStats ? (statsAnswerStats ? (statsAnswerStats[index] || 0) : 0) : 0
               const percentage = shouldShowStats && totalResponses > 0 ? Math.round((optionCount / totalResponses) * 100) : 0
@@ -549,12 +625,113 @@ const QuizRoom = () => {
           </div>
         )}
 
+        {/* Host Results Summary for Word Answer */}
+        {isHost && showResults && currentQuestion.type === 'word' && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl"
+          >
+            <div className="flex items-center justify-center space-x-8 text-sm">
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="font-medium text-gray-700">Correct:</span>
+                <span className="font-bold text-green-600">
+                  {(() => {
+                    const correctAnswer = currentQuestion.correctAnswer?.toLowerCase() || ''
+                    let correctCount = 0
+                    Object.entries(statsAnswerStats || {}).forEach(([answer, count]) => {
+                      if (answer.toLowerCase() === correctAnswer) {
+                        correctCount += count
+                      }
+                    })
+                    return correctCount
+                  })()}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                <span className="font-medium text-gray-700">Wrong:</span>
+                <span className="font-bold text-red-600">
+                  {(() => {
+                    const correctAnswer = currentQuestion.correctAnswer?.toLowerCase() || ''
+                    const totalResponses = Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)
+                    let correctCount = 0
+                    Object.entries(statsAnswerStats || {}).forEach(([answer, count]) => {
+                      if (answer.toLowerCase() === correctAnswer) {
+                        correctCount += count
+                      }
+                    })
+                    return totalResponses - correctCount
+                  })()}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="font-medium text-gray-700">Total:</span>
+                <span className="font-bold text-blue-600">
+                  {Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="font-medium text-gray-700">Answer:</span>
+                <span className="font-bold text-purple-600">
+                  "{currentQuestion.correctAnswer || 'Not specified'}"
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Host Results Summary for True/False */}
+        {isHost && showResults && currentQuestion.type === 'truefalse' && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl"
+          >
+            <div className="flex items-center justify-center space-x-8 text-sm">
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="font-medium text-gray-700">Correct:</span>
+                <span className="font-bold text-green-600">
+                  {(statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                <span className="font-medium text-gray-700">Wrong:</span>
+                <span className="font-bold text-red-600">
+                  {Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0) - ((statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0)}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="font-medium text-gray-700">Total:</span>
+                <span className="font-bold text-blue-600">
+                  {Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="font-medium text-gray-700">Accuracy:</span>
+                <span className="font-bold text-purple-600">
+                  {(() => {
+                    const total = Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)
+                    const correct = (statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0
+                    return total > 0 ? Math.round((correct / total) * 100) : 0
+                  })()}%
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* True/False Questions */}
         {currentQuestion.type === 'truefalse' && (
           <div className="grid grid-cols-2 gap-6 mb-8">
             {['True', 'False'].map((option, index) => {
-              // Only show stats to host OR to players if host has enabled stats visibility AND results are shown
-              const shouldShowStats = isHost || (showStatsToPlayers && showResults)
+              // Show stats to host always, to players when results are shown
+              const shouldShowStats = isHost || showResults
               const totalResponses = shouldShowStats ? Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0) : 0
               const optionCount = shouldShowStats ? (statsAnswerStats ? (statsAnswerStats[index] || 0) : 0) : 0
               const percentage = shouldShowStats && totalResponses > 0 ? Math.round((optionCount / totalResponses) * 100) : 0
@@ -635,6 +812,83 @@ const QuizRoom = () => {
           </div>
         )}
 
+        {/* Word Answer Questions */}
+        {currentQuestion.type === 'word' && (
+          <div className="mb-8">
+            {!isHost ? (
+              // Player input
+              <div className="max-w-md mx-auto">
+                <div className="text-center mb-6">
+                  <h4 className="text-lg font-semibold text-gray-700 mb-2">Enter your answer:</h4>
+                  <p className="text-sm text-gray-500">Type a single word</p>
+                </div>
+                <input
+                  type="text"
+                  value={selectedAnswer || ''}
+                  onChange={(e) => {
+                    // Only allow single word (no spaces)
+                    const value = e.target.value.replace(/\s+/g, '')
+                    setSelectedAnswer(value)
+                  }}
+                  disabled={isHost || hasAnswered}
+                  className={`w-full text-center text-xl font-medium px-6 py-4 border-2 rounded-2xl transition-all duration-200 ${
+                    hasAnswered ? 'border-green-300 bg-green-50' : 'border-gray-300 focus:border-primary-500 focus:ring-4 focus:ring-primary-200'
+                  }`}
+                  placeholder="Your answer..."
+                  maxLength={50}
+                />
+                {showResults && (
+                  <div className="mt-4 text-center">
+                    <div className={`inline-block px-4 py-2 rounded-lg text-sm font-medium ${
+                      selectedAnswer?.toLowerCase() === currentQuestion.correctAnswer?.toLowerCase()
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {selectedAnswer?.toLowerCase() === currentQuestion.correctAnswer?.toLowerCase()
+                        ? `✅ Correct! "${currentQuestion.correctAnswer}"`
+                        : `❌ Incorrect. Correct answer: "${currentQuestion.correctAnswer}"`
+                      }
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Host view - show word cloud or list of answers when results are shown
+              showResults && (
+                <div className="max-w-4xl mx-auto">
+                  <h4 className="text-lg font-semibold text-gray-700 text-center mb-6">Student Answers:</h4>
+                  <div className="bg-gray-50 rounded-2xl p-6">
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {Object.entries(statsAnswerStats || {}).map(([answer, count]) => {
+                        const isCorrect = answer.toLowerCase() === currentQuestion.correctAnswer?.toLowerCase()
+                        return (
+                          <motion.div
+                            key={answer}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium border-2 ${
+                              isCorrect 
+                                ? 'bg-green-100 border-green-300 text-green-800'
+                                : 'bg-gray-100 border-gray-300 text-gray-700'
+                            }`}
+                          >
+                            <span>"{answer}"</span>
+                            <span className="bg-white px-2 py-1 rounded-full text-xs">{count}</span>
+                            {isCorrect && <CheckCircle className="w-4 h-4" />}
+                          </motion.div>
+                        )
+                      })}
+                    </div>
+                    {Object.keys(statsAnswerStats || {}).length === 0 && (
+                      <p className="text-center text-gray-500">No answers submitted yet</p>
+                    )}
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="text-center space-y-4">
           {isHost ? (
@@ -666,11 +920,20 @@ const QuizRoom = () => {
               {!hasAnswered && !showResults && (
                 <button
                   onClick={submitAnswer}
-                  disabled={selectedAnswer === null}
-                  className="btn btn-primary text-lg px-8 py-4 disabled:opacity-50"
+                  disabled={selectedAnswer === null || (typeof selectedAnswer === 'string' && selectedAnswer.trim() === '') || isSubmitting}
+                  className="btn btn-primary text-lg px-8 py-4 disabled:opacity-50 relative"
                 >
-                  <CheckCircle className="w-5 h-5" />
-                  Submit Answer
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span className="ml-2">Submitting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="ml-2">Submit Answer</span>
+                    </>
+                  )}
                 </button>
               )}
               
@@ -930,20 +1193,6 @@ const QuizRoom = () => {
                         <div className="border-t border-gray-100 my-1"></div>
                         
                         <button
-                          onClick={() => { 
-                            setShowStatsToPlayers(!showStatsToPlayers); 
-                            setShowHostMenu(false);
-                            success(showStatsToPlayers ? 'Stats hidden from players' : 'Stats now visible to players');
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                        >
-                          <BarChart3 className={`w-4 h-4 ${
-                            showStatsToPlayers ? 'text-green-600' : 'text-gray-600'
-                          }`} />
-                          <span>{showStatsToPlayers ? 'Hide Stats from Players' : 'Show Stats to Players'}</span>
-                        </button>
-                        
-                        <button
                           onClick={() => { loadPlayers(); setShowHostMenu(false) }}
                           className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
                         >
@@ -1027,11 +1276,10 @@ const QuizRoom = () => {
                   currentQuestion={quiz?.questions[currentQuestionIndex]}
                   currentQuestionIndex={currentQuestionIndex}
                   showResults={showResults}
-                  answerStats={(isHost || (showStatsToPlayers && showResults)) ? (statsAnswerStats || {}) : {}}
-                  leaderboard={statsLeaderboard.length > 0 ? statsLeaderboard : leaderboard}
+                  answerStats={(isHost || showResults) ? (statsAnswerStats || {}) : {}}
+                  leaderboard={(isHost || showResults) ? (statsLeaderboard.length > 0 ? statsLeaderboard : leaderboard) : []}
                   currentPlayerId={playerId}
                   isHost={isHost}
-                  showStatsToPlayers={showStatsToPlayers}
                   className="transition-all duration-300"
                 />
               </div>
