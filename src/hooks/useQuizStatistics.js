@@ -14,14 +14,22 @@ export const useQuizStatistics = (quizId, currentQuestionIndex = 0) => {
   const calculateAnswerStats = useCallback((participants, questionIndex) => {
     const stats = {}
     
+    // Calculating answer statistics
+    
     participants.forEach(participant => {
+      // Check if participant has answers for this question
       if (participant.answers && participant.answers[questionIndex] !== undefined) {
         const answerData = participant.answers[questionIndex]
+        // Handle both old format (direct value) and new format (object with answer property)
         const answerIndex = typeof answerData === 'object' ? answerData.answer : answerData
         stats[answerIndex] = (stats[answerIndex] || 0) + 1
+        // Participant answered
+      } else {
+        // Participant hasn't answered yet
       }
     })
     
+    // Final answer statistics calculated
     return stats
   }, [])
 
@@ -29,19 +37,26 @@ export const useQuizStatistics = (quizId, currentQuestionIndex = 0) => {
   const calculateLeaderboard = useCallback((participants) => {
     return participants
       .map(participant => {
-        // Calculate total score and correct answers
-        const answers = participant.answers || {}
-        let totalScore = 0
+        // Calculate total score and correct answers - FIXED: Handle both old and new formats
+        const answers = participant.answers || []
+        let totalScore = participant.score || 0 // Use stored score first
         let correctAnswers = 0
         
-        Object.entries(answers).forEach(([questionIndex, answerData]) => {
-          if (typeof answerData === 'object' && answerData.score) {
-            totalScore += answerData.score
-            if (answerData.isCorrect) {
+        // Count correct answers from answers array
+        if (Array.isArray(answers)) {
+          answers.forEach(answerData => {
+            if (typeof answerData === 'object' && answerData.isCorrect) {
               correctAnswers++
             }
-          }
-        })
+          })
+        } else {
+          // Handle object format
+          Object.entries(answers).forEach(([questionIndex, answerData]) => {
+            if (typeof answerData === 'object' && answerData.isCorrect) {
+              correctAnswers++
+            }
+          })
+        }
         
         return {
           id: participant.id,
@@ -69,7 +84,7 @@ export const useQuizStatistics = (quizId, currentQuestionIndex = 0) => {
       return
     }
 
-    console.log('📊 Setting up quiz statistics listener for:', quizId)
+    // Setting up quiz statistics listener
     
     const unsubscribes = []
 
@@ -91,7 +106,7 @@ export const useQuizStatistics = (quizId, currentQuestionIndex = 0) => {
             })
           })
 
-          console.log(`📈 Participants updated: ${participantData.length} participants`)
+          // Participants data updated
           
           // Update participants
           setParticipants(participantData)
@@ -113,53 +128,23 @@ export const useQuizStatistics = (quizId, currentQuestionIndex = 0) => {
     )
     unsubscribes.push(participantsUnsubscribe)
 
-    // Listen for enhanced question statistics
-    const questionStatsUnsubscribe = firestoreOnSnapshot(
-      doc(db, `quizStatistics/${quizId}/questions`, `question_${currentQuestionIndex}`),
-      (snapshot) => {
-        try {
-          if (snapshot.exists()) {
-            const questionData = snapshot.data()
-            setQuestionStatistics(questionData)
-            setAnswerStats(questionData.answerDistribution || {})
-            console.log(`📊 Question ${currentQuestionIndex} stats updated:`, questionData)
-          } else {
-            // Fallback to legacy calculation if enhanced stats don't exist
-            console.log('📊 Using legacy statistics calculation')
-            const legacyStats = calculateAnswerStats(participants, currentQuestionIndex)
-            setAnswerStats(legacyStats)
-          }
-          setLoading(false)
-        } catch (err) {
-          console.error('Error processing question statistics:', err)
-          // Fallback to legacy method
-          const legacyStats = calculateAnswerStats(participants, currentQuestionIndex)
-          setAnswerStats(legacyStats)
-          setLoading(false)
-        }
-      },
-      (err) => {
-        console.warn('Question statistics listener error, using fallback:', err.message)
-        // Use legacy calculation as fallback
-        const legacyStats = calculateAnswerStats(participants, currentQuestionIndex)
-        setAnswerStats(legacyStats)
-        setLoading(false)
-      }
-    )
-    unsubscribes.push(questionStatsUnsubscribe)
+    // Use legacy calculation for answer statistics (enhanced stats temporarily disabled)
+    const legacyStats = calculateAnswerStats(participants, currentQuestionIndex)
+    setAnswerStats(legacyStats)
+    setLoading(false)
 
     return () => {
-      console.log('📊 Cleaning up quiz statistics listeners')
+      // Cleaning up quiz statistics listeners
       unsubscribes.forEach(unsubscribe => unsubscribe())
     }
-  }, [quizId, currentQuestionIndex, calculateAnswerStats, calculateLeaderboard, participants])
+  }, [quizId, currentQuestionIndex, calculateAnswerStats, calculateLeaderboard])
 
   // Update answer stats when question changes
   useEffect(() => {
     if (participants.length > 0) {
       const newAnswerStats = calculateAnswerStats(participants, currentQuestionIndex)
       setAnswerStats(newAnswerStats)
-      console.log(`📊 Answer stats for Q${currentQuestionIndex + 1}:`, newAnswerStats)
+      // Answer statistics updated for question
     }
   }, [currentQuestionIndex, participants, calculateAnswerStats])
 

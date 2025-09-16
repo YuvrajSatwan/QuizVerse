@@ -34,12 +34,13 @@ import { useQuiz } from '../contexts/QuizContext'
 import { useToast } from '../contexts/ToastContext'
 import { useAuth } from '../contexts/AuthContext'
 import { testFirebaseConnection } from '../firebase/config'
+import AuthenticationModal from '../components/AuthenticationModal'
 
 const CreateQuiz = () => {
   const navigate = useNavigate()
   const { createQuiz } = useQuiz()
   const { success, error } = useToast()
-  const { currentUser, signInWithGoogle, signInAsGuest } = useAuth()
+  const { currentUser } = useAuth()
   
   const [formData, setFormData] = useState({
     title: '',
@@ -67,13 +68,10 @@ const CreateQuiz = () => {
   const [lastSaved, setLastSaved] = useState(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   
-  // Debug: Log when quizCode changes
-  console.log('Current quizCode state:', quizCode)
+  // Authentication modal state
+  const [showAuthModal, setShowAuthModal] = useState(false)
   
-  // Monitor quizCode changes
-  useEffect(() => {
-    console.log('quizCode changed to:', quizCode)
-  }, [quizCode])
+  // Monitor quizCode changes for debugging if needed
 
   // Load draft from localStorage on component mount
   useEffect(() => {
@@ -87,7 +85,7 @@ const CreateQuiz = () => {
           setQuestions(savedQuestions)
           setLastSaved(new Date(timestamp))
           setHasUnsavedChanges(true)
-          console.log('📝 Loaded quiz draft from localStorage')
+          // Loaded quiz draft from localStorage
         } else {
           localStorage.removeItem('quizDraft')
         }
@@ -110,7 +108,7 @@ const CreateQuiz = () => {
       setAutoSaveStatus('saved')
       setLastSaved(new Date())
       setHasUnsavedChanges(false)
-      console.log('💾 Auto-saved quiz draft')
+      // Auto-saved quiz draft
     } catch (error) {
       console.error('Failed to save quiz draft:', error)
       setAutoSaveStatus('error')
@@ -157,10 +155,29 @@ const CreateQuiz = () => {
     ))
   }
 
+  // Helper function to check if an option is a duplicate
+  const isDuplicateOption = (question, optionIndex, value) => {
+    return question.options.some((option, index) => 
+      index !== optionIndex && option === value && value.trim() !== ''
+    )
+  }
+  
   const updateOption = (questionId, optionIndex, value) => {
     setQuestions(questions.map(q => {
       if (q.id === questionId) {
         const newOptions = [...q.options]
+        
+        // Check for exact duplicates (case-sensitive) but allow different cases
+        const isDuplicate = newOptions.some((option, index) => 
+          index !== optionIndex && option === value && value.trim() !== ''
+        )
+        
+        if (isDuplicate && value.trim() !== '') {
+          // Show error message for exact duplicate
+          error(`Duplicate option "${value}" is not allowed. Use different text or change the case.`)
+          return q // Don't update if it's an exact duplicate
+        }
+        
         newOptions[optionIndex] = value
         return { ...q, options: newOptions }
       }
@@ -231,12 +248,25 @@ const CreateQuiz = () => {
       error('Please fill in all options for multiple choice questions')
       return
     }
+    
+    // Check for duplicate options in each MCQ question (case-sensitive)
+    for (const question of questions) {
+      if (question.type === 'mcq') {
+        const optionTexts = question.options.filter(opt => opt.trim() !== '')
+        const duplicates = optionTexts.filter((option, index) => 
+          optionTexts.indexOf(option) !== index
+        )
+        if (duplicates.length > 0) {
+          error(`Question "${question.text}" has duplicate options: ${duplicates.join(', ')}. Please use different text or change the case.`)
+          return
+        }
+      }
+    }
 
         setIsSubmitting(true)
 
     try {
-      console.log('Form data:', formData)
-      console.log('Questions:', questions)
+      // Preparing quiz data for submission
       
       // Test Firebase connection first
       const isConnected = await testFirebaseConnection()
@@ -264,23 +294,18 @@ const CreateQuiz = () => {
         showLeaderboard: false
       }
 
-      console.log('Quiz data to be created:', quizData)
-      console.log('createQuiz function:', createQuiz)
+      // Creating quiz with prepared data
       
       const quizId = await createQuiz(quizData)
       
       // Store host ID for this quiz
       localStorage.setItem('userId', hostId)
-      console.log('Quiz ID received:', quizId)
       const code = quizId.slice(-6).toUpperCase()
-      console.log('Generated quiz code:', code)
       
       // Set host flag for later use
       localStorage.setItem('isQuizHost', quizId)
-      console.log('Host flag set for quiz:', quizId)
       
       setQuizCode(code)
-      console.log('Quiz code state set to:', code)
       
       // Clear the draft since quiz was successfully created
       localStorage.removeItem('quizDraft')
@@ -317,60 +342,49 @@ const CreateQuiz = () => {
     }
   }
 
-  const handleSignIn = async (method) => {
-    try {
-      if (method === 'google') {
-        await signInWithGoogle()
-      } else {
-        signInAsGuest()
-      }
-      success('Signed in successfully!')
-    } catch (err) {
-      error('Failed to sign in. Please try again.')
-      console.error(err)
-    }
-  }
-
-  // If user is not authenticated, show sign-in options
-  if (!currentUser) {
+  // Check if user needs authentication or email verification
+  const needsAuthentication = !currentUser || (currentUser && !currentUser.isGuest && !currentUser.emailVerified)
+  
+  // If user is not authenticated or not verified, show authentication requirement
+  if (needsAuthentication) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-4 py-12">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-4 py-8 sm:py-12">
         <div className="w-full max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
             {/* Left Side - Branding & Benefits */}
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-center lg:text-left"
+              className="text-center lg:text-left order-2 lg:order-1"
             >
               {/* Back Button */}
               <button
                 onClick={() => navigate('/')}
-                className="inline-flex items-center space-x-2 text-gray-600 hover:text-primary-600 mb-8 transition-colors duration-200"
+                className="inline-flex items-center space-x-2 text-gray-600 hover:text-primary-600 mb-6 sm:mb-8 transition-colors duration-200 min-h-[44px]"
               >
                 <ArrowLeft className="w-5 h-5" />
                 <span>Back to Home</span>
               </button>
 
               {/* Brand Logo */}
-              <div className="flex items-center justify-center lg:justify-start space-x-3 mb-8">
-                <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-3xl flex items-center justify-center shadow-lg">
-                  <Sparkles className="w-8 h-8 text-white" />
+              <div className="flex items-center justify-center lg:justify-start space-x-3 mb-6 sm:mb-8">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-3xl flex items-center justify-center shadow-lg">
+                  <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Quizzer</h1>
-                  <p className="text-primary-600 font-medium">Create & Share</p>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Quizzer</h1>
+                  <p className="text-primary-600 font-medium text-sm sm:text-base">Create & Share</p>
                 </div>
               </div>
 
               {/* Headline */}
-              <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6 leading-tight">
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-4 sm:mb-6 leading-tight">
                 Start Creating
                 <span className="block text-gradient">Amazing Quizzes</span>
               </h2>
               
-              <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+              <p className="text-lg sm:text-xl text-gray-600 mb-6 sm:mb-8 leading-relaxed">
                 Join thousands of educators and creators who trust Quizzer to build engaging, interactive learning experiences.
               </p>
 
@@ -397,70 +411,55 @@ const CreateQuiz = () => {
               </div>
             </motion.div>
 
-            {/* Right Side - Sign In Card */}
+            {/* Right Side - Authentication Required */}
             <motion.div
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="relative"
+              className="relative order-1 lg:order-2"
             >
-              {/* Background Decoration */}
-              <div className="absolute -top-6 -right-6 w-72 h-72 bg-gradient-to-br from-primary-200/20 to-purple-200/20 rounded-full blur-3xl"></div>
+              {/* Background Decoration - Hidden on mobile */}
+              <div className="absolute -top-6 -right-6 w-72 h-72 bg-gradient-to-br from-primary-200/20 to-purple-200/20 rounded-full blur-3xl hidden lg:block"></div>
               
-              <div className="relative bg-white rounded-3xl shadow-2xl border border-gray-100 p-8 lg:p-10">
+              <div className="relative bg-white rounded-2xl lg:rounded-3xl shadow-2xl border border-gray-100 p-6 sm:p-8 lg:p-10">
                 {/* Header */}
-                <div className="text-center mb-8">
-                  <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                    <Lock className="w-8 h-8 text-white" />
+                <div className="text-center mb-6 sm:mb-8">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-lg">
+                    <Lock className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                    Welcome Back
+                  <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
+                    {!currentUser ? 'Welcome to Quizzer' : 'Verify Your Email'}
                   </h3>
-                  <p className="text-gray-600">
-                    Sign in to start creating engaging quizzes
+                  <p className="text-gray-600 text-sm sm:text-base">
+                    {!currentUser 
+                      ? 'Sign in to start creating engaging quizzes'
+                      : 'Please verify your email to continue creating quizzes'
+                    }
                   </p>
                 </div>
 
-                {/* Sign In Options */}
-                <div className="space-y-4">
+                {/* Authentication Action */}
+                <div className="text-center">
                   <button
-                    onClick={() => handleSignIn('google')}
-                    className="group w-full bg-white border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-700 font-semibold py-4 px-6 rounded-2xl transition-all duration-300 flex items-center justify-center space-x-3 hover:shadow-lg transform hover:scale-[1.02]"
+                    onClick={() => setShowAuthModal(true)}
+                    className="w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-semibold py-3 sm:py-4 px-6 rounded-2xl transition-all duration-300 hover:shadow-xl transform hover:scale-[1.02] flex items-center justify-center space-x-2 sm:space-x-3 min-h-[48px] text-base sm:text-lg"
                   >
-                    <svg className="w-6 h-6" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                    </svg>
-                    <span className="text-lg">Continue with Google</span>
-                  </button>
-                  
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-200"></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-4 bg-white text-gray-500">or</span>
-                    </div>
-                  </div>
-                  
-                  <button
-                    onClick={() => handleSignIn('guest')}
-                    className="group w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-semibold py-4 px-6 rounded-2xl transition-all duration-300 hover:shadow-xl transform hover:scale-[1.02] flex items-center justify-center space-x-3"
-                  >
-                    <User className="w-6 h-6" />
-                    <span className="text-lg">Continue as Guest</span>
+                    <Lock className="w-5 h-5" />
+                    <span>
+                      {!currentUser ? 'Sign In to Continue' : 'Complete Verification'}
+                    </span>
                   </button>
                 </div>
 
                 {/* Security Note */}
-                <div className="mt-8 p-4 bg-gray-50 rounded-2xl">
+                <div className="mt-6 sm:mt-8 p-4 bg-gray-50 rounded-2xl">
                   <div className="flex items-start space-x-3">
                     <Shield className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-sm text-gray-700 font-medium">Secure Authentication</p>
-                      <p className="text-xs text-gray-500 mt-1">Your data is protected with industry-standard security measures.</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Your account is protected with email verification and industry-standard security measures.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -468,27 +467,38 @@ const CreateQuiz = () => {
             </motion.div>
           </div>
         </div>
+        
+        {/* Authentication Modal */}
+        <AnimatePresence>
+          {showAuthModal && (
+            <AuthenticationModal
+              onClose={() => setShowAuthModal(false)}
+              onSuccess={() => {
+                setShowAuthModal(false)
+                // The component will re-render automatically due to currentUser state change
+              }}
+            />
+          )}
+        </AnimatePresence>
       </div>
     )
   }
 
-  console.log('Rendering component, quizCode:', quizCode)
   if (quizCode) {
-    console.log('Rendering success screen')
     return (
-      <div className="min-h-screen bg-white flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
         {/* Header */}
-        <div className="bg-white border-b border-gray-100 px-6 py-4">
-          <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="glass border-b border-white/20 px-4 sm:px-6 py-4">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <CheckCircle className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900">Quizzer</span>
+              <span className="text-xl font-bold text-gradient">Quizzer</span>
             </div>
             <button
               onClick={() => navigate('/')}
-              className="text-gray-500 hover:text-gray-700 transition-colors"
+              className="p-2 rounded-xl text-gray-600 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -496,112 +506,132 @@ const CreateQuiz = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex items-center justify-center px-6 py-12">
-          <div className="w-full max-w-lg">
+        <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-8">
+          <div className="w-full max-w-md">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-center"
+              transition={{ duration: 0.6 }}
+              className="text-center space-y-6"
             >
-              {/* Success Icon & Title */}
-              <div className="mb-12">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-green-500 rounded-full mb-6">
-                  <CheckCircle className="w-10 h-10 text-white" />
+              {/* Success Header */}
+              <div className="space-y-3">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-500 rounded-3xl shadow-glow"
+                >
+                  <CheckCircle className="w-7 h-7 text-white" />
+                </motion.div>
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
+                    Quiz Ready! 🎉
+                  </h1>
+                  <p className="text-gray-600 text-sm">
+                    Share this code with participants
+                  </p>
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-3">
-                  Your presentation is ready!
-                </h1>
-                <p className="text-gray-500 text-lg">
-                  Share the code below so your audience can join.
-                </p>
               </div>
 
-              {/* Quiz Code - Mentimeter Style */}
-              <div className="bg-gray-50 rounded-3xl p-12 mb-8">
-                <div className="text-center">
-                  <p className="text-gray-500 text-sm mb-2 uppercase tracking-wide font-medium">
-                    Go to menti.com and use code
-                  </p>
-                  <div className="text-6xl font-black text-gray-900 tracking-wider mb-6 font-mono">
-                    {quizCode}
+              {/* Quiz Code Card */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3, duration: 0.5 }}
+                className="card p-6 relative overflow-hidden"
+              >
+                {/* Background decoration */}
+                <div className="absolute inset-0 bg-gradient-to-br from-primary-50/50 to-secondary-50/50 opacity-30" />
+                
+                <div className="relative space-y-4">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                      Quiz Code
+                    </p>
+                    <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-wider font-mono">
+                      {quizCode}
+                    </div>
                   </div>
-                  <button
+                  
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={copyToClipboard}
-                    className={`inline-flex items-center space-x-2 px-6 py-3 rounded-full font-medium transition-all duration-300 ${
+                    className={`btn transition-all duration-300 ${
                       copySuccess 
-                        ? 'bg-green-500 text-white' 
-                        : 'bg-primary-600 hover:bg-primary-700 text-white'
+                        ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-glow' 
+                        : 'btn-primary'
                     }`}
                   >
                     {copySuccess ? (
                       <>
-                        <Check className="w-5 h-5" />
+                        <Check className="w-4 h-4" />
                         <span>Copied!</span>
                       </>
                     ) : (
                       <>
-                        <Copy className="w-5 h-5" />
-                        <span>Copy code</span>
+                        <Copy className="w-4 h-4" />
+                        <span>Copy Code</span>
                       </>
                     )}
-                  </button>
+                  </motion.button>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Quiz Info Card */}
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-8">
-                <div className="flex items-start justify-between">
-                  <div className="text-left flex-1">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">{formData.title}</h3>
-                    {formData.description && (
-                      <p className="text-gray-600 mb-3">{formData.description}</p>
-                    )}
-                    <div className="flex items-center space-x-6 text-sm text-gray-500">
-                      <div className="flex items-center space-x-1">
-                        <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                        <span>{questions.length} questions</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                        <span>{formData.questionTime}s per question</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
-                      <Play className="w-6 h-6 text-primary-600" />
-                    </div>
-                  </div>
+              {/* Quiz Info - Compact */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4, duration: 0.5 }}
+                className="card p-4 text-left"
+              >
+                <h3 className="text-base font-bold text-gray-900 mb-1">
+                  {formData.title}
+                </h3>
+                <div className="flex items-center space-x-4 text-xs text-gray-600">
+                  <span>{questions.length} questions</span>
+                  <span>•</span>
+                  <span>{formData.questionTime}s each</span>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Action Button */}
-              <button
-                onClick={() => {
-                  const quizId = localStorage.getItem('isQuizHost')
-                  if (quizId) {
-                    navigate(`/quiz/${quizId}`)
-                  }
-                }}
-                className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-4 px-8 rounded-2xl transition-all duration-300 hover:shadow-lg transform hover:scale-[1.02] mb-4"
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5, duration: 0.5 }}
+                className="space-y-3"
               >
-                Start presentation
-              </button>
-
-              {/* Secondary Actions */}
-              <div className="flex justify-center space-x-4 text-sm">
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    const quizId = localStorage.getItem('isQuizHost')
+                    if (quizId) {
+                      navigate(`/quiz/${quizId}`)
+                    }
+                  }}
+                  className="w-full btn btn-primary text-base py-3"
+                >
+                  <Target className="w-4 h-4" />
+                  <span>Enter Quiz Room</span>
+                </motion.button>
+                
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => {
                     setQuizCode(null)
                     setFormData({ title: '', description: '', questionTime: 30, showAnswers: 'live' })
                     setQuestions([{ id: Date.now(), text: '', type: 'mcq', options: ['', '', '', ''], correctAnswer: 0 }])
                   }}
-                  className="text-gray-500 hover:text-gray-700 transition-colors flex items-center space-x-1"
+                  className="w-full btn btn-outline text-sm py-2"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Create new</span>
-                </button>
-              </div>
+                  <Plus className="w-3 h-3" />
+                  <span>Create Another Quiz</span>
+                </motion.button>
+              </motion.div>
             </motion.div>
           </div>
         </div>
@@ -615,31 +645,31 @@ const CreateQuiz = () => {
   const progress = (currentStep / totalSteps) * 100
 
   return (
-    <div className="min-h-screen pt-16 bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="min-h-screen pt-14 sm:pt-16 bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Enhanced Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-12"
+          className="mb-8 sm:mb-12"
         >
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
             <button
               onClick={() => navigate('/')}
-              className="flex items-center space-x-2 text-gray-600 hover:text-primary-600 transition-colors duration-200 group"
+              className="flex items-center space-x-2 text-gray-600 hover:text-primary-600 transition-colors duration-200 group min-h-[44px]"
             >
               <div className="p-2 rounded-full group-hover:bg-primary-50 transition-colors">
                 <ArrowLeft className="w-5 h-5" />
               </div>
-              <span className="font-medium">Back to Home</span>
+              <span className="font-medium text-sm sm:text-base">Back to Home</span>
             </button>
             
             {/* Progress Indicator */}
-            <div className="flex items-center space-x-3">
-              <div className="text-sm font-medium text-gray-600">
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <div className="text-xs sm:text-sm font-medium text-gray-600 whitespace-nowrap">
                 Step {currentStep} of {totalSteps}
               </div>
-              <div className="w-32 bg-gray-200 rounded-full h-2">
+              <div className="w-20 sm:w-32 bg-gray-200 rounded-full h-2">
                 <motion.div 
                   className="bg-gradient-to-r from-primary-500 to-primary-600 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${progress}%` }}
@@ -653,26 +683,26 @@ const CreateQuiz = () => {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary-500 to-primary-600 rounded-3xl mb-6 shadow-xl"
+              className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-primary-500 to-primary-600 rounded-3xl mb-4 sm:mb-6 shadow-xl"
             >
-              <FileText className="w-10 h-10 text-white" />
+              <FileText className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
             </motion.div>
             
-            <h1 className="text-5xl font-bold text-gray-900 mb-4">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-3 sm:mb-4">
               Create Your Quiz
-              <span className="block text-3xl text-gradient mt-2">Make Learning Interactive</span>
+              <span className="block text-xl sm:text-2xl lg:text-3xl text-gradient mt-1 sm:mt-2">Make Learning Interactive</span>
             </h1>
             
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed px-4">
               Build engaging quizzes with our intuitive creator. Add questions, customize settings, and share with your audience in minutes.
             </p>
           </div>
         </motion.div>
 
         {/* Enhanced Form Layout */}
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Main Content - Quiz Setup */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 space-y-6 lg:space-y-8">
             <motion.form
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -685,22 +715,22 @@ const CreateQuiz = () => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 }}
-                className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden"
+                className="bg-white rounded-2xl lg:rounded-3xl shadow-xl border border-gray-100 overflow-hidden"
               >
-                <div className="bg-gradient-to-r from-primary-500 to-primary-600 px-8 py-6">
+                <div className="bg-gradient-to-r from-primary-500 to-primary-600 px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2 sm:space-x-3">
                       <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                         <BookOpen className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold text-white">Quiz Information</h2>
-                        <p className="text-primary-100 text-sm">Give your quiz a name and description</p>
+                        <h2 className="text-lg sm:text-xl font-bold text-white">Quiz Information</h2>
+                        <p className="text-primary-100 text-xs sm:text-sm">Give your quiz a name and description</p>
                       </div>
                     </div>
                     
-                    {/* Auto-save Status Indicator */}
-                    <div className="flex items-center space-x-2 text-white/90">
+                    {/* Auto-save Status Indicator - Hidden on mobile */}
+                    <div className="hidden sm:flex items-center space-x-2 text-white/90">
                       {autoSaveStatus === 'saving' && (
                         <>
                           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -733,9 +763,9 @@ const CreateQuiz = () => {
                   </div>
                 </div>
                 
-                <div className="p-8">
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="md:col-span-2">
+                <div className="p-4 sm:p-6 lg:p-8">
+                  <div className="grid grid-cols-1 gap-4 sm:gap-6">
+                    <div>
                       <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
                         <Target className="w-4 h-4 text-primary-500" />
                         <span>Quiz Title *</span>
@@ -744,13 +774,13 @@ const CreateQuiz = () => {
                         type="text"
                         value={formData.title}
                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        className="w-full px-4 py-4 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200 transition-all duration-200 text-lg placeholder-gray-400"
-                        placeholder="e.g., 'Science Quiz for Grade 5' or 'Company Knowledge Test'"
+                        className="w-full px-4 py-3 sm:py-4 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200 transition-all duration-200 text-base sm:text-lg placeholder-gray-400"
+                        placeholder="e.g., 'Science Quiz for Grade 5'"
                         required
                       />
-                      <div className="mt-2 flex justify-between items-center">
+                      <div className="mt-2 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
                         <p className="text-xs text-gray-500">Choose a clear, descriptive title</p>
-                        <span className={`text-xs font-medium ${
+                        <span className={`text-xs font-medium self-start sm:self-auto ${
                           formData.title.length > 50 ? 'text-red-500' : 'text-gray-400'
                         }`}>
                           {formData.title.length}/50
@@ -758,7 +788,7 @@ const CreateQuiz = () => {
                       </div>
                     </div>
                     
-                    <div className="md:col-span-2">
+                    <div>
                       <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
                         <FileText className="w-4 h-4 text-primary-500" />
                         <span>Description</span>
@@ -766,13 +796,13 @@ const CreateQuiz = () => {
                       <textarea
                         value={formData.description}
                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        className="w-full px-4 py-4 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200 transition-all duration-200 placeholder-gray-400 resize-none"
+                        className="w-full px-4 py-3 sm:py-4 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200 transition-all duration-200 placeholder-gray-400 resize-none text-base"
                         rows="3"
-                        placeholder="Optional: Add a brief description of what this quiz covers..."
+                        placeholder="Optional: Add a brief description..."
                       />
-                      <div className="mt-2 flex justify-between items-center">
+                      <div className="mt-2 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
                         <p className="text-xs text-gray-500">Help participants understand the quiz content</p>
-                        <span className={`text-xs font-medium ${
+                        <span className={`text-xs font-medium self-start sm:self-auto ${
                           formData.description.length > 200 ? 'text-red-500' : 'text-gray-400'
                         }`}>
                           {formData.description.length}/200
@@ -780,41 +810,43 @@ const CreateQuiz = () => {
                       </div>
                     </div>
                     
-                    <div>
-                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
-                        <Clock className="w-4 h-4 text-primary-500" />
-                        <span>Time per Question</span>
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={formData.questionTime}
-                          onChange={(e) => setFormData({ ...formData, questionTime: parseInt(e.target.value) || 30 })}
-                          className="w-full px-4 py-4 pr-16 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200 transition-all duration-200 text-lg"
-                          min="5"
-                          max="300"
-                        />
-                        <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 font-medium">
-                          sec
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                          <Clock className="w-4 h-4 text-primary-500" />
+                          <span>Time per Question</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={formData.questionTime}
+                            onChange={(e) => setFormData({ ...formData, questionTime: parseInt(e.target.value) || 30 })}
+                            className="w-full px-4 py-3 sm:py-4 pr-14 sm:pr-16 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200 transition-all duration-200 text-base sm:text-lg"
+                            min="5"
+                            max="300"
+                          />
+                          <div className="absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2 text-gray-400 font-medium text-sm sm:text-base">
+                            sec
+                          </div>
                         </div>
+                        <p className="text-xs text-gray-500 mt-2">Recommended: 30-60 seconds</p>
                       </div>
-                      <p className="text-xs text-gray-500 mt-2">Recommended: 30-60 seconds</p>
-                    </div>
-                    
-                    <div>
-                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
-                        <Eye className="w-4 h-4 text-primary-500" />
-                        <span>Answer Visibility</span>
-                      </label>
-                      <select
-                        value={formData.showAnswers}
-                        onChange={(e) => setFormData({ ...formData, showAnswers: e.target.value })}
-                        className="w-full px-4 py-4 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200 transition-all duration-200 text-lg appearance-none bg-white"
-                      >
-                        <option value="live">Show immediately</option>
-                        <option value="after">Show after quiz ends</option>
-                      </select>
-                      <p className="text-xs text-gray-500 mt-2">When should participants see correct answers?</p>
+                      
+                      <div>
+                        <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                          <Eye className="w-4 h-4 text-primary-500" />
+                          <span>Answer Visibility</span>
+                        </label>
+                        <select
+                          value={formData.showAnswers}
+                          onChange={(e) => setFormData({ ...formData, showAnswers: e.target.value })}
+                          className="w-full px-4 py-3 sm:py-4 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200 transition-all duration-200 text-base sm:text-lg appearance-none bg-white"
+                        >
+                          <option value="live">Show immediately</option>
+                          <option value="after">Show after quiz ends</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-2">When should participants see correct answers?</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -825,23 +857,23 @@ const CreateQuiz = () => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.5 }}
-                className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden"
+                className="bg-white rounded-2xl lg:rounded-3xl shadow-xl border border-gray-100 overflow-hidden"
               >
-                <div className="bg-gradient-to-r from-purple-500 to-purple-600 px-8 py-6">
-                  <div className="flex items-center space-x-3">
+                <div className="bg-gradient-to-r from-purple-500 to-purple-600 px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
                     <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                       <HelpCircle className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-white">
+                      <h2 className="text-lg sm:text-xl font-bold text-white">
                         Questions ({questions.length})
                       </h2>
-                      <p className="text-purple-100 text-sm">Add engaging questions to your quiz</p>
+                      <p className="text-purple-100 text-xs sm:text-sm">Add engaging questions to your quiz</p>
                     </div>
                   </div>
                 </div>
                 
-                <div className="p-8">
+                <div className="p-4 sm:p-6 lg:p-8">
 
                   {questions.length === 0 ? (
                     <div className="text-center py-12">
@@ -1055,20 +1087,42 @@ const CreateQuiz = () => {
                                             value={option}
                                             onChange={(e) => updateOption(question.id, optionIndex, e.target.value)}
                                             className={`flex-1 px-4 py-3 border-2 rounded-2xl transition-all duration-200 ${
-                                              question.correctAnswer === optionIndex
+                                              // Check if this option is a duplicate
+                                              isDuplicateOption(question, optionIndex, option) && option.trim() !== ''
+                                                ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-4 focus:ring-red-200 text-red-700'
+                                                : question.correctAnswer === optionIndex
                                                 ? 'border-green-300 bg-green-50 focus:border-green-500 focus:ring-4 focus:ring-green-200'
                                                 : 'border-gray-200 focus:border-primary-500 focus:ring-4 focus:ring-primary-200'
                                             }`}
                                             placeholder={`Option ${optionIndex + 1}`}
                                             required
                                           />
+                                          
+                                          {/* Duplicate warning icon */}
+                                          {isDuplicateOption(question, optionIndex, option) && option.trim() !== '' && (
+                                            <motion.div
+                                              initial={{ scale: 0, rotate: -180 }}
+                                              animate={{ scale: 1, rotate: 0 }}
+                                              className="flex items-center justify-center w-8 h-8 bg-red-100 border-2 border-red-300 rounded-full ml-2 text-red-600"
+                                              title="Duplicate option detected"
+                                            >
+                                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                              </svg>
+                                            </motion.div>
+                                          )}
                                         </div>
                                       </div>
                                     ))}
                                   </div>
-                                  <p className="text-xs text-gray-500 mt-3">
-                                    💡 Select the radio button to mark the correct answer
-                                  </p>
+                                  <div className="mt-3 space-y-1">
+                                    <p className="text-xs text-gray-500">
+                                      💡 Select the radio button to mark the correct answer
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      ⚠️ Exact duplicate options are not allowed (case-sensitive). "Apple" and "apple" are different.
+                                    </p>
+                                  </div>
                                 </div>
                               )}
 

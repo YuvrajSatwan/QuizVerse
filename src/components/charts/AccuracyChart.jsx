@@ -6,13 +6,32 @@ const AccuracyChart = ({ question, answerStats, showResults = false }) => {
   const [animatedStats, setAnimatedStats] = useState({ correct: 0, incorrect: 0, percentage: 0 })
 
   useEffect(() => {
-    console.log('🎯 AccuracyChart useEffect:', { answerStats, question: question?.text, showResults })
     if (answerStats && question && showResults) {
-      const correctCount = answerStats[question.correctAnswer] || 0
+      // Handle different question types
+      let correctCount = 0
       const totalResponses = Object.values(answerStats).reduce((sum, count) => sum + count, 0)
+      
+      // For different question types, find correct answers
+      if (question.type === 'word') {
+        // For word questions, check case-insensitive match
+        const correctAnswer = question.correctAnswer?.toLowerCase()
+        Object.entries(answerStats).forEach(([answer, count]) => {
+          if (answer.toLowerCase() === correctAnswer) {
+            correctCount += count
+          }
+        })
+      } else if (question.type === 'truefalse') {
+        // For true/false questions, correctAnswer is 0 (True) or 1 (False)
+        correctCount = answerStats[question.correctAnswer] || 0
+      } else {
+        // For MCQ questions, correctAnswer is the option index
+        correctCount = answerStats[question.correctAnswer] || 0
+      }
+      
       const incorrectCount = totalResponses - correctCount
       const accuracyPercentage = totalResponses > 0 ? Math.round((correctCount / totalResponses) * 100) : 0
-      console.log('📊 Accuracy stats calculated:', { correctCount, totalResponses, accuracyPercentage })
+      
+      // Stats calculated successfully
 
       // Animate the statistics
       const timer = setTimeout(() => {
@@ -30,9 +49,7 @@ const AccuracyChart = ({ question, answerStats, showResults = false }) => {
     }
   }, [answerStats, question, showResults])
 
-  console.log('🎯 AccuracyChart render check:', { hasQuestion: !!question, showResults })
   if (!question || !showResults) {
-    console.log('🎯 AccuracyChart early return - waiting for results or no question')
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -58,7 +75,6 @@ const AccuracyChart = ({ question, answerStats, showResults = false }) => {
   }
 
   const { correct, incorrect, percentage, total } = animatedStats
-  console.log('🎯 AccuracyChart rendering with stats:', animatedStats)
 
   return (
     <motion.div

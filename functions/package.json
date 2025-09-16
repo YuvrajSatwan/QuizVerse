@@ -1,6 +1,6 @@
 {
-  "name": "quizverse-functions",
-  "description": "Cloud Functions for QuizVerse",
+  "name": "quizzer-functions",
+  "description": "Cloud Functions for Quizzer",
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",

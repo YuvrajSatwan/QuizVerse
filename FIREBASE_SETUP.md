@@ -1,13 +1,46 @@
 # Firebase Setup Guide
 
-## Issue: Quiz Creation Not Working
+## 🚨 Current Issues
 
-The quiz creation functionality is currently not working because of Firebase configuration issues. Here's how to fix it:
+### 1. Authentication Errors (PRIORITY)
+- `auth/operation-not-allowed` - Email/password authentication not enabled
+- `auth/popup-closed-by-user` - Google sign-in popup issues
+- Authentication features not working
 
-### 1. Enable Firestore Database
+### 2. Quiz Creation Issues
+- Firestore database may need configuration
+- Security rules may need setup
+
+Here's how to fix both issues:
+
+## PRIORITY FIX: Enable Authentication
+
+### 1. Enable Email/Password Authentication
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Select your project: `quizverse-54259` (not `quizzer-54259`)
+3. Navigate to **Authentication** → **Sign-in method**
+4. Click on **Email/Password** 
+5. **Toggle ON** the first option (Email/Password)
+6. Click **Save**
+
+### 2. Enable Google Sign-In
+1. Still in **Sign-in method** tab
+2. Click on **Google**
+3. **Toggle ON** Google sign-in
+4. Set your **Project support email** (use your Google account email)
+5. Click **Save**
+
+### 3. Configure Authorized Domains
+1. Go to **Authentication** → **Settings** → **Authorized domains**
+2. Ensure these domains are listed:
+   - `localhost`
+   - `127.0.0.1`
+   - Your production domain (when ready)
+
+## Secondary Fix: Enable Firestore Database
 
 1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Select your project: `quizverse-54259`
+2. Select your project: `quizzer-54259`
 3. In the left sidebar, click on "Firestore Database"
 4. If not already enabled, click "Create Database"
 5. Choose "Start in test mode" for development (allows all reads/writes)

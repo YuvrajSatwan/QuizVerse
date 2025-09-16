@@ -36,11 +36,27 @@ export function QuizProvider({ children }) {
       
       playersSnapshot.forEach((doc) => {
         const data = doc.data()
+        
+        // Calculate correct answers count
+        const answers = data.answers || []
+        let correctAnswers = 0
+        
+        if (Array.isArray(answers)) {
+          answers.forEach(answerData => {
+            if (typeof answerData === 'object' && answerData.isCorrect) {
+              correctAnswers++
+            }
+          })
+        }
+        
         playersData.push({
           id: doc.id,
           name: data.name,
           score: data.score || 0,
-          answers: data.answers || []
+          correctAnswers,
+          answers: data.answers || [],
+          joinedAt: data.joinedAt,
+          lastAnsweredAt: data.lastAnsweredAt
         })
       })
       
@@ -125,30 +141,42 @@ export function QuizProvider({ children }) {
 
   const submitAnswer = async (quizId, playerId, questionIndex, answer, isCorrect = false, timeBonus = 0) => {
     try {
-      // Calculate score for this answer
+      // Calculate score for this answer - FIXED: Ensure 0 points for wrong answers
       const baseScore = isCorrect ? 100 : 0
-      const totalScore = baseScore + timeBonus
+      const totalScore = isCorrect ? baseScore + timeBonus : 0 // Wrong answers always get 0
       
-      // Update player's answer and score
+      console.log(`🎯 Score calculation: isCorrect=${isCorrect}, baseScore=${baseScore}, timeBonus=${timeBonus}, totalScore=${totalScore}`)
+      
+      // Get current player data first
+      const playerDoc = await getDoc(doc(db, `quizzes/${quizId}/players/${playerId}`))
+      if (!playerDoc.exists()) {
+        throw new Error('Player not found')
+      }
+      
+      const playerData = playerDoc.data()
+      const currentAnswers = playerData.answers || []
+      const currentScore = playerData.score || 0
+      
+      // Update answers array
+      const updatedAnswers = [...currentAnswers]
+      updatedAnswers[questionIndex] = {
+        answer,
+        isCorrect,
+        score: totalScore,
+        answeredAt: new Date().toISOString()
+      }
+      
+      // Calculate new total score
+      const newTotalScore = currentScore + totalScore
+      
+      // Update player document with both answers and new total score
       await updateDoc(doc(db, `quizzes/${quizId}/players/${playerId}`), {
-        [`answers.${questionIndex}`]: {
-          answer,
-          isCorrect,
-          score: totalScore,
-          answeredAt: serverTimestamp()
-        },
+        answers: updatedAnswers,
+        score: newTotalScore,
         lastAnsweredAt: serverTimestamp()
       })
       
-      // Update player's total score
-      const playerDoc = await getDoc(doc(db, `quizzes/${quizId}/players/${playerId}`))
-      if (playerDoc.exists()) {
-        const playerData = playerDoc.data()
-        const currentScore = playerData.score || 0
-        await updateDoc(doc(db, `quizzes/${quizId}/players/${playerId}`), {
-          score: currentScore + totalScore
-        })
-      }
+      console.log(`✅ Answer submitted: Player score updated from ${currentScore} to ${newTotalScore}`)
     } catch (error) {
       console.error('Error submitting answer:', error)
       throw error

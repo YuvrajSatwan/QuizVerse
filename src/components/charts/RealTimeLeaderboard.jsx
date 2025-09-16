@@ -41,7 +41,7 @@ const RealTimeLeaderboard = ({
       setAnimatedLeaderboard(newLeaderboard)
       setPreviousLeaderboard(leaderboard.slice(0, maxDisplay))
     }
-  }, [leaderboard, currentPlayerId, maxDisplay, previousLeaderboard])
+  }, [leaderboard, currentPlayerId, maxDisplay])
 
   const getRankIcon = (position) => {
     switch (position) {

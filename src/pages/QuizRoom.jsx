@@ -22,6 +22,7 @@ import { useQuizStatistics } from '../hooks/useQuizStatistics'
 import { doc, getDoc, onSnapshot, updateDoc, collection } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import QuizDashboard from '../components/charts/QuizDashboard'
+import QuizSummary from '../components/charts/QuizSummary'
 
 const QuizRoom = () => {
   const { quizId } = useParams()
@@ -56,6 +57,8 @@ const QuizRoom = () => {
   const [playerId, setPlayerId] = useState('')
   const [showHostMenu, setShowHostMenu] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [playersCountUpdated, setPlayersCountUpdated] = useState(false)
+  const [realtimeConnected, setRealtimeConnected] = useState(true)
   // Removed showStatsToPlayers - stats now show automatically when results are revealed
   
   // Real-time quiz statistics (after currentQuestionIndex is declared)
@@ -73,7 +76,7 @@ const QuizRoom = () => {
   useEffect(() => {
     const initializeQuizRoom = async () => {
       try {
-        console.log('🎯 Initializing Quiz Room:', quizId)
+        // Initializing Quiz Room
         
         // Load quiz data
         const quizDoc = await getDoc(doc(db, 'quizzes', quizId))
@@ -94,7 +97,7 @@ const QuizRoom = () => {
         setIsHost(userIsHost)
         setPlayerId(storedPlayerId || '')
         
-        console.log(`👤 User Role: ${userIsHost ? 'HOST' : 'PLAYER'}`)
+        // User role determined
         
         // Set initial quiz state
         setQuizState(quizData.status || 'waiting')
@@ -120,7 +123,7 @@ const QuizRoom = () => {
   useEffect(() => {
     if (!quiz) return
 
-    console.log('🔄 Setting up real-time listeners')
+    // Setting up real-time listeners
     
     const unsubscribeQuiz = onSnapshot(
       doc(db, 'quizzes', quizId),
@@ -166,7 +169,7 @@ const QuizRoom = () => {
           setShowResults(newShowResults)
           setShowLeaderboard(newShowLeaderboard)
           
-          console.log(`📊 Quiz Updated: ${newState}, Q${newQuestionIndex + 1}, Results: ${newShowResults}`)
+          // Quiz state updated
         }
       },
       (err) => console.warn('🌐 Quiz sync error:', err.message)
@@ -177,23 +180,28 @@ const QuizRoom = () => {
   
   // Real-time Players/Leaderboard Updates
   useEffect(() => {
-    if (!quiz || quizState === 'waiting') return
+    if (!quiz) return
 
-    console.log('👥 Setting up real-time player listeners')
+    // Setting up real-time player listeners for ALL quiz states (including waiting)
+    console.log('🔄 Setting up real-time player listener for quiz state:', quizState)
     
     // Listen for changes in the players collection
     const unsubscribePlayers = onSnapshot(
       collection(db, `quizzes/${quizId}/players`),
       (snapshot) => {
-        console.log('📊 Players collection updated')
-        // Refresh leaderboard when player data changes
+        // Players collection updated - refresh immediately
+        console.log('👥 Players collection changed, refreshing count...')
+        setRealtimeConnected(true)
         loadPlayers()
       },
-      (err) => console.warn('👥 Player sync error:', err.message)
+      (err) => {
+        console.warn('👥 Player sync error:', err.message)
+        setRealtimeConnected(false)
+      }
     )
 
     return () => unsubscribePlayers()
-  }, [quiz, quizId, quizState])
+  }, [quiz, quizId]) // Removed quizState dependency to ensure it works in all states
 
   // Timer Logic
   useEffect(() => {
@@ -234,13 +242,30 @@ const QuizRoom = () => {
   // Load Players Data
   const loadPlayers = async () => {
     try {
+      console.log('🔄 Loading players for quiz:', quizId)
       const leaderboardData = await calculateLeaderboard(quizId)
       if (leaderboardData) {
+        const prevCount = players.length
+        const newCount = leaderboardData.length
+        
+        console.log('✅ Players updated:', newCount, 'participants (was:', prevCount, ')')
+        
         setLeaderboard(leaderboardData)
         setPlayers(leaderboardData) // Players are same as leaderboard entries
+        
+        // Trigger visual feedback if count changed
+        if (newCount !== prevCount) {
+          setPlayersCountUpdated(true)
+          setTimeout(() => setPlayersCountUpdated(false), 1000)
+        }
+      } else {
+        console.log('⚠️ No player data received')
+        setLeaderboard([])
+        setPlayers([])
       }
     } catch (err) {
-      console.error('Failed to load players:', err)
+      console.error('❌ Failed to load players:', err)
+      // Don't reset players on error to avoid flickering
     }
   }
 
@@ -351,7 +376,8 @@ const QuizRoom = () => {
         isCorrect = selectedAnswer === currentQuestion.correctAnswer
       }
       
-      const timeBonus = Math.max(0, Math.floor(timer / 2))
+      // FIXED: Ensure wrong answers always get 0 points
+      const timeBonus = isCorrect ? Math.max(0, Math.floor(timer / 2)) : 0
       const totalScore = isCorrect ? 100 + timeBonus : 0
       
       console.log(`✅ Answer submitted: ${selectedAnswer}, Correct: ${isCorrect}, Score: ${totalScore}`)
@@ -467,48 +493,6 @@ const QuizRoom = () => {
           )}
         </div>
 
-        {/* Host Results Summary */}
-        {isHost && showResults && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl"
-          >
-            <div className="flex items-center justify-center space-x-8 text-sm">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="font-medium text-gray-700">Correct:</span>
-                <span className="font-bold text-green-600">
-                  {(statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <span className="font-medium text-gray-700">Wrong:</span>
-                <span className="font-bold text-red-600">
-                  {Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0) - ((statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0)}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-gray-700">Total:</span>
-                <span className="font-bold text-blue-600">
-                  {Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-gray-700">Accuracy:</span>
-                <span className="font-bold text-purple-600">
-                  {(() => {
-                    const total = Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)
-                    const correct = (statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0
-                    return total > 0 ? Math.round((correct / total) * 100) : 0
-                  })()}%
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        )}
 
         {/* Answer Options */}
         {currentQuestion.type === 'mcq' && (
@@ -625,106 +609,6 @@ const QuizRoom = () => {
           </div>
         )}
 
-        {/* Host Results Summary for Word Answer */}
-        {isHost && showResults && currentQuestion.type === 'word' && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl"
-          >
-            <div className="flex items-center justify-center space-x-8 text-sm">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="font-medium text-gray-700">Correct:</span>
-                <span className="font-bold text-green-600">
-                  {(() => {
-                    const correctAnswer = currentQuestion.correctAnswer?.toLowerCase() || ''
-                    let correctCount = 0
-                    Object.entries(statsAnswerStats || {}).forEach(([answer, count]) => {
-                      if (answer.toLowerCase() === correctAnswer) {
-                        correctCount += count
-                      }
-                    })
-                    return correctCount
-                  })()}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <span className="font-medium text-gray-700">Wrong:</span>
-                <span className="font-bold text-red-600">
-                  {(() => {
-                    const correctAnswer = currentQuestion.correctAnswer?.toLowerCase() || ''
-                    const totalResponses = Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)
-                    let correctCount = 0
-                    Object.entries(statsAnswerStats || {}).forEach(([answer, count]) => {
-                      if (answer.toLowerCase() === correctAnswer) {
-                        correctCount += count
-                      }
-                    })
-                    return totalResponses - correctCount
-                  })()}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-gray-700">Total:</span>
-                <span className="font-bold text-blue-600">
-                  {Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-gray-700">Answer:</span>
-                <span className="font-bold text-purple-600">
-                  "{currentQuestion.correctAnswer || 'Not specified'}"
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Host Results Summary for True/False */}
-        {isHost && showResults && currentQuestion.type === 'truefalse' && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl"
-          >
-            <div className="flex items-center justify-center space-x-8 text-sm">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="font-medium text-gray-700">Correct:</span>
-                <span className="font-bold text-green-600">
-                  {(statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <span className="font-medium text-gray-700">Wrong:</span>
-                <span className="font-bold text-red-600">
-                  {Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0) - ((statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0)}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-gray-700">Total:</span>
-                <span className="font-bold text-blue-600">
-                  {Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-gray-700">Accuracy:</span>
-                <span className="font-bold text-purple-600">
-                  {(() => {
-                    const total = Object.values(statsAnswerStats || {}).reduce((sum, count) => sum + count, 0)
-                    const correct = (statsAnswerStats && statsAnswerStats[currentQuestion.correctAnswer]) || 0
-                    return total > 0 ? Math.round((correct / total) * 100) : 0
-                  })()}%
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        )}
 
         {/* True/False Questions */}
         {currentQuestion.type === 'truefalse' && (
@@ -962,73 +846,158 @@ const QuizRoom = () => {
   }
 
   const renderFinishedScreen = () => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="card p-8 text-center"
-    >
-      <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-        <Trophy className="w-10 h-10 text-green-600" />
-      </div>
-      
-      <h2 className="text-3xl font-bold text-gray-900 mb-4">
-        Quiz Completed! 🎉
-      </h2>
-      
-      <p className="text-xl text-gray-600 mb-8">
-        {isHost ? 'All questions completed!' : 'Thanks for participating!'}
-      </p>
-      
-      {isHost && !showLeaderboard && (
-        <button
-          onClick={showFinalLeaderboard}
-          className="btn btn-primary text-lg px-8 py-4"
-        >
-          <BarChart3 className="w-5 h-5" />
-          Show Final Results
-        </button>
-      )}
-      
-      {showLeaderboard && leaderboard.length > 0 && (
-        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-6 mb-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">🏆 Final Leaderboard</h3>
-          <div className="space-y-3">
-            {leaderboard.slice(0, 5).map((player, index) => (
-              <div key={player.id} className="flex items-center justify-between p-3 bg-white rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                    index === 0 ? 'bg-yellow-500 text-white' :
-                    index === 1 ? 'bg-gray-400 text-white' :
-                    index === 2 ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700'
-                  }`}>
-                    {index + 1}
-                  </span>
-                  <span className="font-semibold">{player.name}</span>
-                </div>
-                <span className="font-bold text-primary-600">{player.score} pts</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      <div className="space-x-4 mt-6">
-        <button
-          onClick={() => navigate('/')}
-          className="btn btn-outline text-lg px-6 py-3"
-        >
-          Back to Home
-        </button>
-        {isHost && (
-          <button
-            onClick={() => navigate('/create')}
-            className="btn btn-secondary text-lg px-6 py-3"
+    <div>
+      {/* Host gets detailed summary, players get simple completion message */}
+      {isHost ? (
+        <div>
+          {/* Quiz Summary for Host */}
+          <QuizSummary 
+            quiz={quiz} 
+            leaderboard={leaderboard} 
+            isVisible={showLeaderboard} 
+          />
+          
+          {/* Host Controls */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card p-8 text-center"
           >
-            Create New Quiz
-          </button>
-        )}
-      </div>
-    </motion.div>
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Trophy className="w-10 h-10 text-green-600" />
+            </div>
+            
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Quiz Completed! 🎉
+            </h2>
+            
+            <p className="text-xl text-gray-600 mb-8">
+              All {quiz.questions?.length || 0} questions completed with {leaderboard.length} participants!
+            </p>
+            
+            {!showLeaderboard ? (
+              <button
+                onClick={showFinalLeaderboard}
+                className="btn btn-primary text-lg px-8 py-4 mb-6"
+              >
+                <BarChart3 className="w-5 h-5" />
+                Show Detailed Results
+              </button>
+            ) : (
+              <div className="mb-6">
+                <div className="inline-flex items-center space-x-2 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Detailed results displayed above</span>
+                </div>
+              </div>
+            )}
+            
+            <div className="space-x-4">
+              <button
+                onClick={() => navigate('/')}
+                className="btn btn-outline text-lg px-6 py-3"
+              >
+                Back to Home
+              </button>
+              <button
+                onClick={() => navigate('/create')}
+                className="btn btn-secondary text-lg px-6 py-3"
+              >
+                Create New Quiz
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      ) : (
+        /* Player View - Simple completion message */
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card p-8 text-center"
+        >
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Trophy className="w-10 h-10 text-green-600" />
+          </div>
+          
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            Quiz Completed! 🎉
+          </h2>
+          
+          <p className="text-xl text-gray-600 mb-8">
+            Thanks for participating! Check the leaderboard to see your results.
+          </p>
+          
+          {/* Show player's performance */}
+          {(() => {
+            const currentPlayer = leaderboard.find(p => p.id === playerId)
+            const playerRank = leaderboard.findIndex(p => p.id === playerId) + 1
+            if (currentPlayer) {
+              return (
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6 mb-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Your Results</h3>
+                  <div className="grid grid-cols-2 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-blue-600">{currentPlayer.score}</div>
+                      <div className="text-sm text-gray-600">Points Earned</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-purple-600">#{playerRank}</div>
+                      <div className="text-sm text-gray-600">Your Rank</div>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+            return null
+          })()}
+          
+          {showLeaderboard && leaderboard.length > 0 && (
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-6 mb-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">🏆 Final Leaderboard</h3>
+              <div className="space-y-3">
+                {leaderboard.slice(0, 5).map((player, index) => (
+                  <div 
+                    key={player.id} 
+                    className={`flex items-center justify-between p-3 rounded-lg ${
+                      player.id === playerId ? 'bg-blue-100 border-2 border-blue-300' : 'bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                        index === 0 ? 'bg-yellow-500 text-white' :
+                        index === 1 ? 'bg-gray-400 text-white' :
+                        index === 2 ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {index + 1}
+                      </span>
+                      <span className={`font-semibold ${
+                        player.id === playerId ? 'text-blue-700' : 'text-gray-900'
+                      }`}>
+                        {player.name} {player.id === playerId ? '(You)' : ''}
+                      </span>
+                    </div>
+                    <span className={`font-bold ${
+                      player.id === playerId ? 'text-blue-700' : 'text-gray-700'
+                    }`}>
+                      {player.score} pts
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <div className="space-x-4">
+            <button
+              onClick={() => navigate('/')}
+              className="btn btn-primary text-lg px-6 py-3"
+            >
+              Back to Home
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </div>
   )
 
   // MAIN RENDER
@@ -1059,205 +1028,236 @@ const QuizRoom = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-      {/* Enhanced Quiz Navigation Header */}
-      <div className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white shadow-lg">
+      {/* Clean Quiz Navigation Header */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary-500/10 via-white/95 to-secondary-500/10 backdrop-blur-xl border-b border-primary-200/30 shadow-lg shadow-primary-900/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Top Row - Navigation */}
+          {/* Single Row - Clean Navigation */}
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              {/* Logo and Back Button */}
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => navigate('/')}
-                  className="flex items-center space-x-2 text-white hover:bg-white/20 px-3 py-2 rounded-xl transition-colors duration-200"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                  <span className="hidden sm:block">Quizzer</span>
-                </button>
-              </div>
-              
-              {/* Quiz Progress Indicator */}
-              {quizState === 'active' && (
-                <div className="hidden md:flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
-                  <div className="text-sm font-medium">
-                    Question {currentQuestionIndex + 1} of {quiz.questions.length}
-                  </div>
-                  <div className="w-24 bg-white/20 rounded-full h-2">
-                    <div 
-                      className="bg-white rounded-full h-2 transition-all duration-300"
-                      style={{ width: `${((currentQuestionIndex + 1) / quiz.questions.length) * 100}%` }}
-                    />
-                  </div>
+            {/* Left Section - Logo & Back */}
+            <div className="flex items-center space-x-6">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/')}
+                className="flex items-center space-x-3 text-gray-700 hover:text-primary-600 transition-colors duration-200 group"
+              >
+                <div className="p-2.5 rounded-full bg-white group-hover:bg-gray-50 border border-primary-200/50 group-hover:border-primary-300 transition-all duration-200 shadow-md shadow-primary-500/10">
+                  <ArrowLeft className="w-5 h-5 text-primary-600" />
                 </div>
-              )}
-            </div>
-            
-            {/* Right Side Controls */}
-            <div className="flex items-center space-x-4">
-              {/* Timer Display - Show to both host and players during active questions */}
-              {quizState === 'active' && !showResults && (
-                <div className="flex items-center space-x-2 bg-white/20 backdrop-blur-sm rounded-xl px-3 py-2">
-                  <Clock className="w-4 h-4" />
-                  <span className="font-bold text-sm">{timer}s</span>
-                  {isHost && (
-                    <span className="text-xs text-white/60">remaining</span>
-                  )}
+                <div className="hidden sm:block">
+                  <span className="text-lg font-bold text-gradient">Quizzer</span>
+                  <div className="text-xs text-gray-500 font-medium">Quiz Room</div>
                 </div>
-              )}
+              </motion.button>
               
-              {/* Players Count */}
-              <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2">
-                <Users className="w-4 h-4" />
-                <span className="text-sm font-medium">{players.length}</span>
-              </div>
-              
-              {/* User Role Badge */}
-              <div className={`text-xs px-3 py-1 rounded-full font-medium ${
-                isHost 
-                  ? 'bg-yellow-400/20 text-yellow-100 border border-yellow-300/30' 
-                  : 'bg-white/20 text-white border border-white/30'
-              }`}>
-                {isHost ? '👑 Host' : '👤 Player'}
-              </div>
-              
-              {/* Host Quick Actions */}
-              {isHost && quizState === 'waiting' && (
-                <button
-                  onClick={startQuiz}
-                  className="hidden sm:flex items-center space-x-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl transition-colors duration-200 font-medium"
-                >
-                  <Play className="w-4 h-4" />
-                  <span>Start</span>
-                </button>
-              )}
-              
-              {/* Host Menu Dropdown */}
-              {isHost && (
-                <div className="relative host-menu-container">
-                  <button
-                    onClick={() => setShowHostMenu(!showHostMenu)}
-                    className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 transition-colors duration-200"
-                  >
-                    <MoreVertical className="w-5 h-5 text-white" />
-                  </button>
-                  
-                  <AnimatePresence>
-                    {showHostMenu && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                        transition={{ duration: 0.2 }}
-                        className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50"
-                      >
-                        {quizState === 'waiting' && (
-                          <button
-                            onClick={() => { startQuiz(); setShowHostMenu(false) }}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                          >
-                            <Play className="w-4 h-4 text-green-600" />
-                            <span>Start Quiz</span>
-                          </button>
-                        )}
-                        
-                        {quizState === 'active' && !showResults && (
-                          <button
-                            onClick={() => { showQuestionResults(); setShowHostMenu(false) }}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                          >
-                            <Eye className="w-4 h-4 text-blue-600" />
-                            <span>Show Results</span>
-                          </button>
-                        )}
-                        
-                        {quizState === 'active' && showResults && (
-                          <button
-                            onClick={() => { nextQuestion(); setShowHostMenu(false) }}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                          >
-                            <Play className="w-4 h-4 text-primary-600" />
-                            <span>{currentQuestionIndex < quiz.questions.length - 1 ? 'Next Question' : 'Finish Quiz'}</span>
-                          </button>
-                        )}
-                        
-                        {quizState === 'finished' && !showLeaderboard && (
-                          <button
-                            onClick={() => { showFinalLeaderboard(); setShowHostMenu(false) }}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                          >
-                            <BarChart3 className="w-4 h-4 text-purple-600" />
-                            <span>Show Final Results</span>
-                          </button>
-                        )}
-                        
-                        <div className="border-t border-gray-100 my-1"></div>
-                        
-                        <button
-                          onClick={() => { loadPlayers(); setShowHostMenu(false) }}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                        >
-                          <RotateCcw className="w-4 h-4 text-gray-600" />
-                          <span>Refresh Players</span>
-                        </button>
-                        
-                        <button
-                          onClick={() => { navigate('/'); setShowHostMenu(false) }}
-                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
-                        >
-                          <ArrowLeft className="w-4 h-4" />
-                          <span>End & Leave Quiz</span>
-                        </button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {/* Bottom Row - Quiz Info */}
-          <div className="pb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex-1">
-                <h1 className="text-2xl sm:text-3xl font-bold mb-1">{quiz.title}</h1>
-                <p className="text-white/80 text-sm sm:text-base">{quiz.description}</p>
-                
-                {/* Mobile Progress Indicator */}
+              {/* Quiz Title & Progress */}
+              <div className="hidden md:block border-l border-primary-200/50 pl-6">
+                <h1 className="text-lg font-semibold text-gray-800 truncate max-w-64">{quiz.title}</h1>
                 {quizState === 'active' && (
-                  <div className="md:hidden mt-3 flex items-center space-x-2">
-                    <span className="text-sm font-medium text-white/90">
-                      {currentQuestionIndex + 1}/{quiz.questions.length}
+                  <div className="flex items-center space-x-3 mt-1">
+                    <span className="text-sm text-gray-600 font-medium">
+                      {currentQuestionIndex + 1} of {quiz.questions.length}
                     </span>
-                    <div className="flex-1 bg-white/20 rounded-full h-2">
+                    <div className="w-20 bg-gray-200 rounded-full h-1.5">
                       <div 
-                        className="bg-white rounded-full h-2 transition-all duration-300"
+                        className="bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full h-1.5 transition-all duration-300 shadow-sm"
                         style={{ width: `${((currentQuestionIndex + 1) / quiz.questions.length) * 100}%` }}
                       />
                     </div>
                   </div>
                 )}
               </div>
-              
-              {/* Quiz State Indicator */}
-              <div className="mt-4 sm:mt-0 flex items-center">
-                <div className={`flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium ${
-                  quizState === 'waiting' ? 'bg-blue-500/20 text-blue-100' :
-                  quizState === 'active' ? 'bg-green-500/20 text-green-100' :
-                  quizState === 'finished' ? 'bg-purple-500/20 text-purple-100' :
-                  'bg-gray-500/20 text-gray-100'
-                }`}>
-                  {quizState === 'waiting' && <><Users className="w-4 h-4" /> Waiting</>}
-                  {quizState === 'active' && <><Play className="w-4 h-4" /> Active</>}
-                  {quizState === 'finished' && <><Trophy className="w-4 h-4" /> Finished</>}
-                </div>
+            </div>
+            
+            {/* Right Section - Controls */}
+            <div className="flex items-center space-x-3">
+              {/* Quiz State Badge */}
+              <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium border shadow-sm ${
+                quizState === 'waiting' ? 'bg-gradient-to-r from-blue-50 to-primary-50 text-blue-700 border-blue-200' :
+                quizState === 'active' ? 'bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 border-green-200' :
+                quizState === 'finished' ? 'bg-gradient-to-r from-primary-50 to-secondary-50 text-primary-700 border-primary-200' :
+                'bg-gradient-to-r from-gray-50 to-slate-50 text-gray-700 border-gray-200'
+              }`}>
+                {quizState === 'waiting' && <><Users className="w-3.5 h-3.5" /> Waiting</>}
+                {quizState === 'active' && <><Play className="w-3.5 h-3.5" /> Live</>}
+                {quizState === 'finished' && <><Trophy className="w-3.5 h-3.5" /> Finished</>}
               </div>
+              
+              {/* Timer Display */}
+              {quizState === 'active' && !showResults && (
+                <motion.div 
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border font-medium text-sm shadow-sm ${
+                    timer <= 5 ? 'bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border-red-200 animate-pulse' :
+                    timer <= 10 ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border-orange-200' :
+                    'bg-gradient-to-r from-primary-50 to-blue-50 text-primary-700 border-primary-200'
+                  }`}
+                  animate={timer <= 5 ? { scale: [1, 1.02, 1] } : { scale: 1 }}
+                  transition={{ duration: 1, repeat: timer <= 5 ? Infinity : 0 }}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{timer}s</span>
+                </motion.div>
+              )}
+              
+              {/* Players Count */}
+              <motion.div 
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border font-medium text-sm shadow-sm ${
+                  playersCountUpdated ? 'bg-gradient-to-r from-primary-50 to-secondary-50 text-primary-700 border-primary-200' : 'bg-gradient-to-r from-gray-50 to-slate-50 text-gray-600 border-gray-200'
+                }`}
+                animate={playersCountUpdated ? { scale: [1, 1.05, 1] } : { scale: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>{players.length}</span>
+                <motion.div
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    realtimeConnected ? 'bg-green-400' : 'bg-red-400'
+                  }`}
+                  animate={realtimeConnected ? { opacity: [1, 0.3, 1] } : { opacity: 1 }}
+                  transition={{ duration: 2, repeat: realtimeConnected ? Infinity : 0 }}
+                />
+              </motion.div>
+              
+              {/* User Role */}
+              <div className={`px-3 py-1.5 rounded-full text-xs font-medium border shadow-sm ${
+                isHost ? 'bg-gradient-to-r from-yellow-50 to-amber-50 text-amber-700 border-amber-200' : 'bg-gradient-to-r from-primary-50 to-secondary-50 text-primary-700 border-primary-200'
+              }`}>
+                {isHost ? '👑 Host' : '👤 Player'}
+              </div>
+              
+              {/* Host Actions */}
+              {isHost && (
+                <div className="flex items-center space-x-2">
+                  {/* Quick Start Button */}
+                  {quizState === 'waiting' && (
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={startQuiz}
+                      className="hidden sm:flex items-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white px-4 py-2 rounded-xl transition-all duration-200 font-medium shadow-lg shadow-green-500/25 text-sm"
+                    >
+                      <Play className="w-4 h-4" />
+                      <span>Start Quiz</span>
+                    </motion.button>
+                  )}
+                  
+                  {/* Host Menu */}
+                  <div className="relative host-menu-container">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setShowHostMenu(!showHostMenu)}
+                      className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm"
+                    >
+                      <MoreVertical className="w-4 h-4 text-gray-600" />
+                    </motion.button>
+                    
+                    <AnimatePresence>
+                      {showHostMenu && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50"
+                        >
+                          {/* Host Controls */}
+                          {quizState === 'waiting' && (
+                            <button
+                              onClick={() => { startQuiz(); setShowHostMenu(false) }}
+                              className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 flex items-center space-x-3 transition-colors duration-150"
+                            >
+                              <Play className="w-4 h-4 text-green-600" />
+                              <span>Start Quiz</span>
+                            </button>
+                          )}
+                          
+                          {quizState === 'active' && !showResults && (
+                            <button
+                              onClick={() => { showQuestionResults(); setShowHostMenu(false) }}
+                              className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center space-x-3 transition-colors duration-150"
+                            >
+                              <Eye className="w-4 h-4 text-blue-600" />
+                              <span>Show Results</span>
+                            </button>
+                          )}
+                          
+                          {quizState === 'active' && showResults && (
+                            <button
+                              onClick={() => { nextQuestion(); setShowHostMenu(false) }}
+                              className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-700 flex items-center space-x-3 transition-colors duration-150"
+                            >
+                              <Play className="w-4 h-4 text-primary-600" />
+                              <span>{currentQuestionIndex < quiz.questions.length - 1 ? 'Next Question' : 'Finish Quiz'}</span>
+                            </button>
+                          )}
+                          
+                          {quizState === 'finished' && !showLeaderboard && (
+                            <button
+                              onClick={() => { showFinalLeaderboard(); setShowHostMenu(false) }}
+                              className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 flex items-center space-x-3 transition-colors duration-150"
+                            >
+                              <BarChart3 className="w-4 h-4 text-purple-600" />
+                              <span>Show Final Results</span>
+                            </button>
+                          )}
+                          
+                          <div className="border-t border-gray-100 my-2"></div>
+                          
+                          <button
+                            onClick={() => { navigate('/'); setShowHostMenu(false) }}
+                            className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-3 transition-colors duration-150"
+                          >
+                            <ArrowLeft className="w-4 h-4" />
+                            <span>End & Leave Quiz</span>
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Mobile Quiz Info */}
+          <div className="md:hidden pb-4 pt-2 border-t border-primary-100/50">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <h2 className="font-semibold text-gray-800 truncate">{quiz.title}</h2>
+                {quizState === 'active' && (
+                  <div className="flex items-center space-x-2 mt-1">
+                    <span className="text-sm text-gray-600 font-medium">
+                      Question {currentQuestionIndex + 1} of {quiz.questions.length}
+                    </span>
+                    <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                      <div 
+                        className="bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full h-1.5 transition-all duration-300 shadow-sm"
+                        style={{ width: `${((currentQuestionIndex + 1) / quiz.questions.length) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Mobile Start Button for Host */}
+              {isHost && quizState === 'waiting' && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={startQuiz}
+                  className="sm:hidden flex items-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg shadow-green-500/25"
+                >
+                  <Play className="w-4 h-4" />
+                  <span>Start</span>
+                </motion.button>
+              )}
             </div>
           </div>
         </div>
-      </div>
+      </nav>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-6 py-8 mt-16">
         {(quizState === 'active' || quizState === 'finished') ? (
           <div className="grid gap-6 lg:grid-cols-5">
             {/* Quiz Content */}

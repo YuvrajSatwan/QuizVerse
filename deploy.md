@@ -1,4 +1,4 @@
-# 🚀 QuizVerse Full-Stack Deployment Guide
+# 🚀 Quizzer Full-Stack Deployment Guide
 
 ## Complete Backend + Frontend Live Deployment
 
@@ -125,7 +125,7 @@ VITE_FIREBASE_PROJECT_ID=your-project-id
 - **Paid**: Pay-as-you-go pricing
 - **Functions**: 2 million invocations free per month
 
-Your QuizVerse will be fully live with:
+Your Quizzer will be fully live with:
 ✅ Real-time backend services
 ✅ Scalable cloud infrastructure  
 ✅ Global CDN distribution

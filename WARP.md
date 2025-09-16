@@ -11,7 +11,7 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 - `npm run lint` - Run ESLint on JS/JSX files
 
 ### Firebase Functions Development
-Navigate to functions directory first: `cd functions` or `cd quizverse-functions`
+Navigate to functions directory first: `cd functions` or `cd quizzer-functions`
 - `npm run build` - Compile TypeScript functions
 - `npm run build:watch` - Watch mode for TypeScript compilation
 - `npm run serve` - Start Firebase emulators for local functions testing
@@ -29,7 +29,7 @@ Navigate to functions directory first: `cd functions` or `cd quizverse-functions
 
 ## Architecture Overview
 
-QuizVerse is a real-time quiz platform with React frontend and Firebase backend services.
+Quizzer is a real-time quiz platform with React frontend and Firebase backend services.
 
 ### Core Architecture Pattern
 - **React Context Pattern**: Three main contexts manage global state
@@ -55,9 +55,9 @@ QuizVerse is a real-time quiz platform with React frontend and Firebase backend 
 ## Firebase Configuration
 
 ### Project Structure
-- **Primary Firebase Project**: `quizverse-54259`
+- **Primary Firebase Project**: `quizzer-54259`
 - **Frontend**: React SPA deployed to Firebase Hosting
-- **Backend**: Cloud Functions in `functions/` and `quizverse-functions/`
+- **Backend**: Cloud Functions in `functions/` and `quizzer-functions/`
 - **Database**: Firestore with real-time listeners
 
 ### Key Firebase Services Used
