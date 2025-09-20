@@ -13,13 +13,14 @@ import {
   Settings,
   MoreVertical,
   Pause,
-  RotateCcw
+  RotateCcw,
+  Star
 } from 'lucide-react'
 import { useQuiz } from '../contexts/QuizContext'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { useQuizStatistics } from '../hooks/useQuizStatistics'
-import { doc, getDoc, onSnapshot, updateDoc, collection } from 'firebase/firestore'
+import { doc, getDoc, onSnapshot, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import QuizDashboard from '../components/charts/QuizDashboard'
 import QuizSummary from '../components/charts/QuizSummary'
@@ -49,6 +50,15 @@ const QuizRoom = () => {
   
   // Dashboard State
   const [showDashboard, setShowDashboard] = useState(true)
+  
+  // Rating State (for players)
+  const [ratingValue, setRatingValue] = useState(null) // 1-5
+  const [ratingFeedback, setRatingFeedback] = useState('')
+  const [ratingSubmitted, setRatingSubmitted] = useState(false)
+  
+  // Derived quiz flow helpers
+  const totalSteps = (quiz?.questions?.length || 0) + (quiz?.enableRating ? 1 : 0)
+  const isRatingStep = !!quiz?.enableRating && (currentQuestionIndex === (quiz?.questions?.length || 0))
   
   // User Interaction State
   const [selectedAnswer, setSelectedAnswer] = useState(null)
@@ -96,6 +106,9 @@ const QuizRoom = () => {
         const userIsHost = storedHostQuizId === quizId
         setIsHost(userIsHost)
         setPlayerId(storedPlayerId || '')
+        
+        // Initialize rating submission state from localStorage (anonymous)
+        setRatingSubmitted(localStorage.getItem(`quizRated:${quizId}`) === 'true')
         
         // User role determined
         
@@ -148,7 +161,7 @@ const QuizRoom = () => {
             }
             setHasAnswered(false)
             setIsSubmitting(false)
-            setTimer(30)
+            setTimer(data?.questionTime || 30)
             // Refresh leaderboard when question changes to ensure consistency
             setTimeout(() => loadPlayers(), 1000)
           }
@@ -156,7 +169,7 @@ const QuizRoom = () => {
           // Reset timer when quiz becomes active or results are hidden
           if ((newState === 'active' && quizState !== 'active') || 
               (showResults && !newShowResults)) {
-            setTimer(30)
+            setTimer(data?.questionTime || 30)
           }
           
           // Refresh leaderboard when results are shown to ensure consistency
@@ -203,8 +216,10 @@ const QuizRoom = () => {
     return () => unsubscribePlayers()
   }, [quiz, quizId]) // Removed quizState dependency to ensure it works in all states
 
-  // Timer Logic
+  // Timer Logic (skip on rating step)
   useEffect(() => {
+    if (isRatingStep) return
+
     if (quizState === 'active' && !showResults && !hasAnswered && timer > 0) {
       const interval = setInterval(() => {
         setTimer(prev => prev - 1)
@@ -225,7 +240,7 @@ const QuizRoom = () => {
         submitAnswer()
       }
     }
-  }, [timer, quizState, showResults, hasAnswered, isHost, selectedAnswer])
+  }, [timer, quizState, showResults, hasAnswered, isHost, selectedAnswer, isRatingStep])
   
   // Close host menu when clicking outside
   useEffect(() => {
@@ -307,28 +322,49 @@ const QuizRoom = () => {
     if (!isHost) return
     
     try {
+      const questionsCount = quiz?.questions?.length || 0
+      const includeRating = !!quiz?.enableRating
+      const total = questionsCount + (includeRating ? 1 : 0)
       const nextIndex = currentQuestionIndex + 1
       
-      if (nextIndex < quiz.questions.length) {
-        // Move to next question
+      if (nextIndex < total) {
+        // Move to next step (either next question or rating step)
         await updateDoc(doc(db, 'quizzes', quizId), {
           currentQuestion: nextIndex,
           showResults: false
         })
-        console.log(`➡️ Moved to question ${nextIndex + 1}`)
+        console.log(`➡️ Moved to step ${nextIndex + 1} of ${total}${nextIndex === questionsCount ? ' (rating)' : ''}`)
       } else {
-        // Finish quiz
+        // Finish quiz and immediately show leaderboard
         await updateDoc(doc(db, 'quizzes', quizId), {
           status: 'finished',
           showResults: false,
+          showLeaderboard: true,
           endedAt: new Date().toISOString()
         })
         success('Quiz completed!')
-        console.log('🏁 Quiz finished by host')
+        console.log('🏁 Quiz finished by host (leaderboard shown)')
       }
     } catch (err) {
       console.error('Failed to advance quiz:', err)
       error('Failed to advance quiz')
+    }
+  }
+
+  const finishQuizNow = async () => {
+    if (!isHost) return
+    try {
+      await updateDoc(doc(db, 'quizzes', quizId), {
+        status: 'finished',
+        showResults: false,
+        showLeaderboard: true,
+        endedAt: new Date().toISOString()
+      })
+      success('Quiz completed!')
+      console.log('🏁 Quiz finished by host from rating step (leaderboard shown)')
+    } catch (err) {
+      console.error('Failed to finish quiz:', err)
+      error('Failed to finish quiz')
     }
   }
 
@@ -344,6 +380,28 @@ const QuizRoom = () => {
     } catch (err) {
       console.error('Failed to show leaderboard:', err)
       error('Failed to show leaderboard')
+    }
+  }
+
+  // Submit anonymous rating
+  const submitRating = async () => {
+    if (!quiz?.enableRating) return
+    if (!ratingValue || ratingValue < 1 || ratingValue > 5) {
+      error('Please select a rating')
+      return
+    }
+    try {
+      await addDoc(collection(db, `quizzes/${quizId}/ratings`), {
+        rating: ratingValue,
+        feedback: ratingValue <= 3 ? (ratingFeedback || '') : (ratingFeedback || ''),
+        createdAt: serverTimestamp()
+      })
+      localStorage.setItem(`quizRated:${quizId}`, 'true')
+      setRatingSubmitted(true)
+      success('Thanks for rating!')
+    } catch (err) {
+      console.error('Failed to submit rating:', err)
+      error('Failed to submit rating. Please try again.')
     }
   }
 
@@ -443,7 +501,99 @@ const QuizRoom = () => {
   )
 
   const renderActiveQuestion = () => {
-    const currentQuestion = quiz.questions[currentQuestionIndex]
+    const currentQuestion = isRatingStep ? null : quiz.questions[currentQuestionIndex]
+
+    // Rating step as a mandatory final step (acts like a question)
+    if (isRatingStep) {
+      return (
+        <motion.div
+          key={currentQuestionIndex}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="card p-8"
+        >
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center space-x-4 mb-2">
+              <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                <span className="text-lg font-bold text-primary-600">
+                  {currentQuestionIndex + 1}
+                </span>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">
+                Question {currentQuestionIndex + 1} of {totalSteps}
+              </h2>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900">
+              Rate your experience
+            </h3>
+          </div>
+
+          {/* Rating UI for players */}
+          {!isHost && (
+            <div className="max-w-xl mx-auto">
+              {!ratingSubmitted ? (
+                <>
+                  <p className="text-sm text-gray-600 mb-4 text-center">Your response is required and anonymous.</p>
+              <div className="flex items-center justify-center gap-3 mb-4">
+                {[1,2,3,4,5].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setRatingValue(s)}
+                    className={`group p-3 rounded-2xl border transition-all duration-200 ${ratingValue >= s ? 'border-yellow-300 bg-gradient-to-br from-yellow-50 to-amber-50 shadow-yellow-200' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                    aria-label={`${s} star${s>1?'s':''}`}
+                  >
+                    <Star className={`w-7 h-7 ${ratingValue >= s ? 'text-yellow-500' : 'text-gray-300 group-hover:text-gray-400'}`} fill={ratingValue >= s ? '#F59E0B' : 'none'} />
+                  </button>
+                ))}
+              </div>
+                  {ratingValue && ratingValue <= 3 && (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Optional feedback</label>
+                      <textarea
+                        value={ratingFeedback}
+                        onChange={(e) => setRatingFeedback(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200"
+                        placeholder="What could be improved? (optional)"
+                        rows={3}
+                      />
+                    </div>
+                  )}
+                  <div className="flex justify-center">
+                    <button
+                      onClick={submitRating}
+                      disabled={!ratingValue}
+                      className="btn btn-primary px-8 py-4 disabled:opacity-50"
+                    >
+                      Submit Rating
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center">
+                  <div className="inline-flex items-center space-x-2 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Thanks for your feedback!</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Host controls for rating step */}
+          {isHost && (
+            <div className="text-center mt-6">
+              <button
+                onClick={finishQuizNow}
+                className="btn btn-primary text-lg px-8 py-4"
+              >
+                Finish Quiz
+              </button>
+            </div>
+          )}
+        </motion.div>
+      )
+    }
     
     return (
       <motion.div
@@ -460,7 +610,7 @@ const QuizRoom = () => {
             </span>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Question {currentQuestionIndex + 1} of {quiz.questions.length}
+            Question {currentQuestionIndex + 1} of {totalSteps}
           </h2>
         </div>
 
@@ -773,12 +923,12 @@ const QuizRoom = () => {
           </div>
         )}
 
-        {/* Action Buttons */}
         <div className="text-center space-y-4">
           {isHost ? (
             // Host Controls
             <div className="space-x-4">
-              {!showResults && (
+              {/* Hide results toggle on rating step */}
+              {!isRatingStep && !showResults && (
                 <button
                   onClick={showQuestionResults}
                   className="btn btn-secondary text-lg px-6 py-3"
@@ -788,13 +938,13 @@ const QuizRoom = () => {
                 </button>
               )}
               
-              {showResults && (
+              {!isRatingStep && showResults && (
                 <button
                   onClick={nextQuestion}
                   className="btn btn-primary text-lg px-6 py-3"
                 >
                   <Play className="w-5 h-5" />
-                  {currentQuestionIndex < quiz.questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
+                  {currentQuestionIndex < (quiz.questions.length - 1) ? 'Next Question' : (quiz.enableRating ? 'Go to Rating' : 'Finish Quiz')}
                 </button>
               )}
             </div>
@@ -854,10 +1004,11 @@ const QuizRoom = () => {
           <QuizSummary 
             quiz={quiz} 
             leaderboard={leaderboard} 
-            isVisible={showLeaderboard} 
+            isVisible={true}
+            quizId={quizId}
           />
           
-          {/* Host Controls */}
+          {/* Host Actions */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -874,23 +1025,6 @@ const QuizRoom = () => {
             <p className="text-xl text-gray-600 mb-8">
               All {quiz.questions?.length || 0} questions completed with {leaderboard.length} participants!
             </p>
-            
-            {!showLeaderboard ? (
-              <button
-                onClick={showFinalLeaderboard}
-                className="btn btn-primary text-lg px-8 py-4 mb-6"
-              >
-                <BarChart3 className="w-5 h-5" />
-                Show Detailed Results
-              </button>
-            ) : (
-              <div className="mb-6">
-                <div className="inline-flex items-center space-x-2 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                  <CheckCircle className="w-4 h-4" />
-                  <span>Detailed results displayed above</span>
-                </div>
-              </div>
-            )}
             
             <div className="space-x-4">
               <button
@@ -935,10 +1069,14 @@ const QuizRoom = () => {
               return (
                 <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6 mb-6">
                   <h3 className="text-lg font-bold text-gray-900 mb-2">Your Results</h3>
-                  <div className="grid grid-cols-2 gap-4 text-center">
+                  <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
                       <div className="text-2xl font-bold text-blue-600">{currentPlayer.score}</div>
                       <div className="text-sm text-gray-600">Points Earned</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-emerald-600">{currentPlayer.correctAnswers || 0}/{quiz.questions?.length || 0}</div>
+                      <div className="text-sm text-gray-600">Correct Answers</div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-purple-600">#{playerRank}</div>
@@ -951,7 +1089,8 @@ const QuizRoom = () => {
             return null
           })()}
           
-          {showLeaderboard && leaderboard.length > 0 && (
+          {/* Removed inline final leaderboard to avoid duplication; right panel shows it */}
+          {false && showLeaderboard && leaderboard.length > 0 && (
             <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-6 mb-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">🏆 Final Leaderboard</h3>
               <div className="space-y-3">
@@ -1056,12 +1195,12 @@ const QuizRoom = () => {
                 {quizState === 'active' && (
                   <div className="flex items-center space-x-3 mt-1">
                     <span className="text-sm text-gray-600 font-medium">
-                      {currentQuestionIndex + 1} of {quiz.questions.length}
+                      {currentQuestionIndex + 1} of {totalSteps}
                     </span>
                     <div className="w-20 bg-gray-200 rounded-full h-1.5">
                       <div 
                         className="bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full h-1.5 transition-all duration-300 shadow-sm"
-                        style={{ width: `${((currentQuestionIndex + 1) / quiz.questions.length) * 100}%` }}
+                        style={{ width: `${totalSteps > 0 ? (((currentQuestionIndex + 1) / totalSteps) * 100) : 0}%` }}
                       />
                     </div>
                   </div>
@@ -1228,12 +1367,12 @@ const QuizRoom = () => {
                 {quizState === 'active' && (
                   <div className="flex items-center space-x-2 mt-1">
                     <span className="text-sm text-gray-600 font-medium">
-                      Question {currentQuestionIndex + 1} of {quiz.questions.length}
+                      Question {currentQuestionIndex + 1} of {totalSteps}
                     </span>
                     <div className="flex-1 bg-gray-200 rounded-full h-1.5">
                       <div 
                         className="bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full h-1.5 transition-all duration-300 shadow-sm"
-                        style={{ width: `${((currentQuestionIndex + 1) / quiz.questions.length) * 100}%` }}
+                        style={{ width: `${totalSteps > 0 ? (((currentQuestionIndex + 1) / totalSteps) * 100) : 0}%` }}
                       />
                     </div>
                   </div>
@@ -1268,20 +1407,59 @@ const QuizRoom = () => {
               </AnimatePresence>
             </div>
             
-            {/* Analytics Dashboard - Compact Side Panel */}
+            {/* Right Panel */}
             <div className="lg:col-span-2">
               <div className="sticky top-24">
-                <QuizDashboard
-                  quiz={quiz}
-                  currentQuestion={quiz?.questions[currentQuestionIndex]}
-                  currentQuestionIndex={currentQuestionIndex}
-                  showResults={showResults}
-                  answerStats={(isHost || showResults) ? (statsAnswerStats || {}) : {}}
-                  leaderboard={(isHost || showResults) ? (statsLeaderboard.length > 0 ? statsLeaderboard : leaderboard) : []}
-                  currentPlayerId={playerId}
-                  isHost={isHost}
-                  className="transition-all duration-300"
-                />
+                {quizState === 'finished' ? (
+                  // Show final leaderboard instead of analytics
+                  <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+                    <h4 className="text-lg font-bold text-gray-900 mb-4">🏁 Final Leaderboard</h4>
+                    <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                      {(leaderboard || []).slice(0, 20).map((player, index) => (
+                        <div
+                          key={player.id}
+                          className={`flex items-center justify-between p-3 rounded-xl border ${
+                            index === 0 ? 'bg-yellow-50 border-yellow-200' :
+                            index === 1 ? 'bg-gray-50 border-gray-200' :
+                            index === 2 ? 'bg-orange-50 border-orange-200' :
+                            'bg-white border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                              index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-500' : 'bg-gray-300 text-gray-800'
+                            }`}>
+                              {index + 1}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-gray-900">{player.name}</div>
+                              <div className="text-xs text-gray-600">{player.correctAnswers || 0}/{quiz.questions?.length || 0} correct</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-gray-900">{player.score} pts</div>
+                            <div className="text-xs text-gray-600">{(quiz.questions?.length || 0) > 0 ? Math.round(((player.correctAnswers || 0) / (quiz.questions?.length || 0)) * 100) : 0}%</div>
+                          </div>
+                        </div>
+                      ))}
+                      {(!leaderboard || leaderboard.length === 0) && (
+                        <div className="text-sm text-gray-600">No participants.</div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <QuizDashboard
+                    quiz={quiz}
+                    currentQuestion={quiz?.questions[currentQuestionIndex]}
+                    currentQuestionIndex={currentQuestionIndex}
+                    showResults={showResults}
+                    answerStats={(isHost || showResults) ? (statsAnswerStats || {}) : {}}
+                    leaderboard={(isHost || showResults) ? (statsLeaderboard.length > 0 ? statsLeaderboard : leaderboard) : []}
+                    currentPlayerId={playerId}
+                    isHost={isHost}
+                    className="transition-all duration-300"
+                  />
+                )}
               </div>
             </div>
           </div>

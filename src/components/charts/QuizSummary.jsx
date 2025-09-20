@@ -1,9 +1,35 @@
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Trophy, Users, Target, Clock, CheckCircle, XCircle, BarChart3 } from 'lucide-react'
+import { Trophy, Users, Target, CheckCircle, BarChart3, Star } from 'lucide-react'
+import { collection, onSnapshot } from 'firebase/firestore'
+import { db } from '../../firebase/config'
 
-const QuizSummary = ({ quiz, leaderboard, isVisible = false }) => {
+const QuizSummary = ({ quiz, leaderboard, isVisible = false, quizId }) => {
   if (!quiz || !isVisible) return null
+
+  // Ratings state
+  const [ratings, setRatings] = useState([])
+
+  useEffect(() => {
+    if (!quizId || !isVisible) return
+    const unsub = onSnapshot(collection(db, `quizzes/${quizId}/ratings`), (snapshot) => {
+      const items = []
+      snapshot.forEach((doc) => {
+        const data = doc.data() || {}
+        items.push({ id: doc.id, rating: data.rating, feedback: data.feedback || '' })
+      })
+      setRatings(items)
+    })
+    return () => unsub()
+  }, [quizId, isVisible])
+
+  const averageRating = useMemo(() => {
+    if (!ratings.length) return 0
+    const sum = ratings.reduce((acc, r) => acc + (Number(r.rating) || 0), 0)
+    return Math.round((sum / ratings.length) * 10) / 10 // one decimal
+  }, [ratings])
+
+  const feedbacks = useMemo(() => ratings.map(r => (r.feedback || '').trim()).filter(Boolean), [ratings])
 
   // Calculate overall quiz statistics
   const totalQuestions = quiz.questions?.length || 0
@@ -68,19 +94,21 @@ const QuizSummary = ({ quiz, leaderboard, isVisible = false }) => {
       className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 mb-6"
     >
       <div className="mb-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-            <BarChart3 className="w-6 h-6 text-purple-600" />
-          </div>
-          <div>
-            <h3 className="text-2xl font-bold text-gray-900">Quiz Summary</h3>
-            <p className="text-gray-600">Complete results for "{quiz.title}"</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-primary-100 to-secondary-100 rounded-xl flex items-center justify-center">
+              <BarChart3 className="w-6 h-6 text-primary-600" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900">Quiz Summary</h3>
+              <p className="text-gray-600">Complete results for "{quiz.title}"</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Overall Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      {/* Key Statistics (includes rating) */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -114,6 +142,7 @@ const QuizSummary = ({ quiz, leaderboard, isVisible = false }) => {
           <div className="text-sm text-purple-700">Average Score</div>
         </motion.div>
 
+        {/* Always show Correct Answers */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -124,49 +153,39 @@ const QuizSummary = ({ quiz, leaderboard, isVisible = false }) => {
           <div className="text-2xl font-bold text-orange-900">{totalCorrectAnswers}</div>
           <div className="text-sm text-orange-700">Correct Answers</div>
         </motion.div>
+
+        {/* Show Average Rating card when enabled */}
+        {quiz.enableRating && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5 }}
+            className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 text-center"
+          >
+            <Star className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
+            <div className="text-2xl font-bold text-yellow-900">{averageRating.toFixed(1)}</div>
+            <div className="text-sm text-yellow-700">Average Rating</div>
+          </motion.div>
+        )}
       </div>
 
-      {/* Top 3 Performers */}
-      <div className="mb-8">
-        <h4 className="text-lg font-bold text-gray-900 mb-4">🏆 Top Performers</h4>
-        <div className="space-y-2">
-          {leaderboard.slice(0, 3).map((player, index) => (
-            <motion.div
-              key={player.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 * index }}
-              className={`flex items-center justify-between p-4 rounded-xl border-2 ${
-                index === 0 ? 'bg-yellow-50 border-yellow-300' :
-                index === 1 ? 'bg-gray-50 border-gray-300' :
-                'bg-orange-50 border-orange-300'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
-                  index === 0 ? 'bg-yellow-500' :
-                  index === 1 ? 'bg-gray-400' :
-                  'bg-orange-500'
-                }`}>
-                  {index + 1}
+      {/* Anonymous Feedback Section */}
+      {quiz.enableRating && (
+        <div className="mb-8">
+          <h4 className="text-lg font-bold text-gray-900 mb-4">💬 Anonymous Feedback</h4>
+          {feedbacks.length ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-64 overflow-y-auto pr-1">
+              {feedbacks.map((fb, idx) => (
+                <div key={idx} className="p-4 rounded-xl bg-white border border-gray-200 shadow-sm">
+                  <p className="text-gray-800">{fb}</p>
                 </div>
-                <div>
-                  <div className="font-semibold text-gray-900">{player.name}</div>
-                  <div className="text-sm text-gray-600">
-                    {player.correctAnswers || 0}/{totalQuestions} correct answers
-                  </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-xl font-bold text-gray-900">{player.score} pts</div>
-                <div className="text-sm text-gray-600">
-                  {totalQuestions > 0 ? Math.round(((player.correctAnswers || 0) / totalQuestions) * 100) : 0}% accuracy
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-600">No feedback yet.</div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Question-by-Question Breakdown */}
       <div className="mb-6">
@@ -215,40 +234,6 @@ const QuizSummary = ({ quiz, leaderboard, isVisible = false }) => {
                     'bg-red-500'
                   }`}
                 />
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* All Participants Performance */}
-      <div>
-        <h4 className="text-lg font-bold text-gray-900 mb-4">👥 All Participants</h4>
-        <div className="max-h-64 overflow-y-auto space-y-2">
-          {leaderboard.map((player, index) => (
-            <motion.div
-              key={player.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.05 * index }}
-              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-            >
-              <div className="flex items-center space-x-3">
-                <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-gray-700">
-                  {index + 1}
-                </div>
-                <div>
-                  <div className="font-medium text-gray-900">{player.name}</div>
-                  <div className="text-xs text-gray-600">
-                    {player.correctAnswers || 0}/{totalQuestions} correct
-                  </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="font-bold text-gray-900">{player.score} pts</div>
-                <div className="text-xs text-gray-600">
-                  {totalQuestions > 0 ? Math.round(((player.correctAnswers || 0) / totalQuestions) * 100) : 0}%
-                </div>
               </div>
             </motion.div>
           ))}

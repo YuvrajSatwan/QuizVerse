@@ -58,16 +58,16 @@ const QuizDashboard = ({
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-t-xl"
+className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-t-xl"
       >
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
             <BarChart3 className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h3 className="font-bold text-gray-900">Quiz Analytics</h3>
+<h3 className="font-bold text-gray-900">Quiz Analytics</h3>
             <p className="text-xs text-gray-500">
-              Real-time insights and statistics
+Real-time insights and statistics
             </p>
           </div>
         </div>
@@ -146,7 +146,7 @@ const QuizDashboard = ({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            className="border-x border-b border-gray-200 rounded-b-xl bg-white overflow-hidden"
+className="border-x border-b border-gray-200 rounded-b-xl bg-white overflow-hidden"
           >
             <div className={`p-4 ${isExpanded ? '' : 'pb-2'}`}>
               {!shouldShowDashboard ? (

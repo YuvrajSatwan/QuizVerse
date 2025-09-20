@@ -46,7 +46,8 @@ const CreateQuiz = () => {
     title: '',
     description: '',
     questionTime: 30,
-    showAnswers: 'live'
+    showAnswers: 'live',
+    enableRating: false
   })
   
   const [questions, setQuestions] = useState([
@@ -278,8 +279,11 @@ const CreateQuiz = () => {
       // Generate a unique user ID for the host
       const hostId = Date.now().toString() + Math.random().toString(36).substr(2, 9)
       
+      const sanitizedQuestionTime = Number(formData.questionTime) || 30
+
       const quizData = {
         ...formData,
+        questionTime: sanitizedQuestionTime,
         questions: questions.map(q => ({
           text: q.text,
           type: q.type,
@@ -820,10 +824,19 @@ const CreateQuiz = () => {
                           <input
                             type="number"
                             value={formData.questionTime}
-                            onChange={(e) => setFormData({ ...formData, questionTime: parseInt(e.target.value) || 30 })}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              if (val === '') {
+                                setFormData({ ...formData, questionTime: '' })
+                              } else {
+                                const num = Math.max(5, Math.min(300, parseInt(val) || 0))
+                                setFormData({ ...formData, questionTime: num })
+                              }
+                            }}
                             className="w-full px-4 py-3 sm:py-4 pr-14 sm:pr-16 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200 transition-all duration-200 text-base sm:text-lg"
                             min="5"
                             max="300"
+                            placeholder="30"
                           />
                           <div className="absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2 text-gray-400 font-medium text-sm sm:text-base">
                             sec
@@ -1227,8 +1240,22 @@ const CreateQuiz = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
-                className="flex justify-center pt-8"
+                className="flex flex-col items-center gap-4 pt-8"
               >
+                {/* Enable Rating Checkbox */}
+                <label className="inline-flex items-start space-x-3 bg-white border border-gray-200 rounded-2xl px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={!!formData.enableRating}
+                    onChange={(e) => setFormData({ ...formData, enableRating: e.target.checked })}
+                    className="mt-1 w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  <div>
+                    <span className="block font-semibold text-gray-800">Enable Quiz Rating</span>
+                    <span className="block text-sm text-gray-600">Ask participants to rate the quiz at the end (anonymous).</span>
+                  </div>
+                </label>
+
                 <button
                   type="submit"
                   disabled={isSubmitting || !formData.title || questions.some(q => !q.text.trim())}
@@ -1338,12 +1365,12 @@ const CreateQuiz = () => {
                     
                     <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-xl">
                       <span className="text-gray-600">Time per question</span>
-                      <span className="font-semibold text-gray-900">{formData.questionTime}s</span>
+                      <span className="font-semibold text-gray-900">{Number(formData.questionTime) || 30}s</span>
                     </div>
                     
                     <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-xl">
                       <span className="text-gray-600">Total time</span>
-                      <span className="font-semibold text-gray-900">{Math.ceil((questions.length * formData.questionTime) / 60)} min</span>
+                      <span className="font-semibold text-gray-900">{Math.ceil((questions.length * (Number(formData.questionTime) || 30)) / 60)} min</span>
                     </div>
                   </div>
                 </div>
