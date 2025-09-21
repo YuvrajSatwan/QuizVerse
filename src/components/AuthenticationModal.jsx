@@ -354,20 +354,6 @@ const AuthenticationModal = ({ onClose, onSuccess }) => {
                 </div>
               </div>
 
-              {/* Firebase Configuration Notice */}
-              <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                <div className="flex items-start space-x-2 sm:space-x-3">
-                  <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs sm:text-sm text-amber-700 font-medium">Setup Required</p>
-                    <p className="text-xs sm:text-sm text-amber-600 mt-1">
-                      Email/password signup may not work until Firebase Authentication is properly configured. 
-                      Try Google sign-in or continue as guest for now.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               {/* Email/Password Form */}
               <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
                 {/* Display Name (signup only) */}

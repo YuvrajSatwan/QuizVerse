@@ -1284,19 +1284,53 @@ const CreateQuiz = () => {
                 transition={{ delay: 0.6 }}
                 className="flex flex-col items-center gap-4 pt-8"
               >
-                {/* Enable Rating Checkbox */}
-                <label className="inline-flex items-start space-x-3 bg-white border border-gray-200 rounded-2xl px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={!!formData.enableRating}
-                    onChange={(e) => setFormData({ ...formData, enableRating: e.target.checked })}
-                    className="mt-1 w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  />
-                  <div>
-                    <span className="block font-semibold text-gray-800">Enable Quiz Rating</span>
-                    <span className="block text-sm text-gray-600">Ask participants to rate the quiz at the end (anonymous).</span>
-                  </div>
-                </label>
+                {/* Enable Rating - Styled Toggle Card (UI only) */}
+                <div
+                  className={`w-full rounded-2xl border transition-all duration-300 p-4 sm:p-5 ${
+                    formData.enableRating
+                      ? 'bg-gradient-to-r from-primary-50 to-emerald-50 border-primary-200 shadow-md'
+                      : 'bg-white border-gray-200 hover:border-primary-200'
+                  }`}
+                >
+                  <label className="flex items-start gap-4 cursor-pointer select-none">
+                    {/* Toggle Switch */}
+                    <div className="relative inline-flex h-7 w-12 flex-shrink-0 items-center">
+                      <input
+                        type="checkbox"
+                        checked={!!formData.enableRating}
+                        onChange={(e) => setFormData({ ...formData, enableRating: e.target.checked })}
+                        className="sr-only"
+                        aria-label="Enable Quiz Rating"
+                      />
+                      <div
+                        className={`${
+                          formData.enableRating ? 'bg-primary-600' : 'bg-gray-300'
+                        } h-7 w-12 rounded-full transition-colors duration-300`}
+                      />
+                      <span
+                        className={`absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform duration-300 ${
+                          formData.enableRating ? 'translate-x-5' : ''
+                        }`}
+                      />
+                    </div>
+
+                    {/* Text Content */}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <BarChart3 className={`w-4 h-4 ${formData.enableRating ? 'text-primary-600' : 'text-gray-500'}`} />
+                        <span className="font-semibold text-gray-900">Enable Quiz Rating</span>
+                        {formData.enableRating && (
+                          <span className="ml-1 inline-flex items-center rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
+                            On
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Ask participants to rate the quiz at the end (anonymous).
+                      </p>
+                    </div>
+                  </label>
+                </div>
 
                 <button
                   type="submit"

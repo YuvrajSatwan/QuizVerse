@@ -108,7 +108,7 @@ const QuizSummary = ({ quiz, leaderboard, isVisible = false, quizId }) => {
       </div>
 
       {/* Key Statistics (includes rating) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -142,17 +142,6 @@ const QuizSummary = ({ quiz, leaderboard, isVisible = false, quizId }) => {
           <div className="text-sm text-purple-700">Average Score</div>
         </motion.div>
 
-        {/* Always show Correct Answers */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.4 }}
-          className="bg-orange-50 border-2 border-orange-200 rounded-xl p-3 sm:p-4 text-center"
-        >
-          <CheckCircle className="w-8 h-8 text-orange-600 mx-auto mb-2" />
-          <div className="text-2xl font-bold text-orange-900">{totalCorrectAnswers}</div>
-          <div className="text-sm text-orange-700">Correct Answers</div>
-        </motion.div>
 
         {/* Show Average Rating card when enabled */}
         {quiz.enableRating && (

@@ -193,16 +193,7 @@ Real-time insights and statistics
                         </div>
                       </div>
                       
-                      {/* Additional metrics row */}
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
-                          <div className="text-2xl font-bold text-purple-600 mb-1">
-                            {Math.round((leaderboard.filter(p => (p.correctAnswers || 0) > 0).length / Math.max(leaderboard.length, 1)) * 100) || 0}%
-                          </div>
-                          <div className="text-sm font-medium text-purple-700">Participation Rate</div>
-                        </div>
-                      </div>
-                      
+
                       {/* Accuracy Summary - Show when results shown */}
                       {showResults && (
                         <AccuracyChart

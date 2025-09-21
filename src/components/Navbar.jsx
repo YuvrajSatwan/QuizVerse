@@ -59,10 +59,7 @@ const Navbar = () => {
   }, [location.pathname])
 
   // Navigation items for better mobile experience
-  const navItems = [
-    { name: 'Create Quiz', path: '/create', icon: Plus },
-    { name: 'Join Quiz', path: '/join', icon: Play }
-  ]
+  const navItems = []
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/20">

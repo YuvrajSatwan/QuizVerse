@@ -30,7 +30,7 @@ const QuizRoom = () => {
   const navigate = useNavigate()
   const { currentUser } = useAuth()
   const { calculateLeaderboard, submitAnswer: submitAnswerToContext, players: contextPlayers, leaderboard: contextLeaderboard } = useQuiz()
-  const { success, error } = useToast()
+  const { success, error, info } = useToast()
   
   // Core State
   const [quiz, setQuiz] = useState(null)
@@ -431,7 +431,7 @@ const QuizRoom = () => {
     // Immediately update UI for instant feedback
     setIsSubmitting(true)
     setHasAnswered(true)
-    success('Answer submitted!')
+    info('Answer submitted!')
     
     try {
       const currentQuestion = quiz.questions[currentQuestionIndex]
@@ -520,7 +520,7 @@ const QuizRoom = () => {
           key={currentQuestionIndex}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="card p-4 sm:p-6 lg:p-8 xl:p-10"
+          className="card p-4 sm:p-6 lg:p-8 xl:p-10 pt-10 sm:pt-6"
         >
           {/* Header */}
           <div className="mb-8">
@@ -610,11 +610,11 @@ const QuizRoom = () => {
         key={currentQuestionIndex}
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        className="card p-4 sm:p-6 lg:p-8 xl:p-10"
+        className="card p-4 sm:p-6 lg:p-8 xl:p-10 pt-10 sm:pt-6"
       >
         {/* Question Header */}
         <div className="text-center mb-6 sm:mb-8">
-          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+          <div className="w-10 h-10 sm:w-16 sm:h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
             <span className="text-lg sm:text-2xl font-bold text-primary-600">
               {currentQuestionIndex + 1}
             </span>
@@ -643,12 +643,7 @@ const QuizRoom = () => {
                   <Clock className="w-6 h-6" />
                   <span>{timer <= 0 ? 'Time\'s up!' : `${timer}s remaining`}</span>
                 </div>
-              ) : (
-                <div className="inline-flex items-center space-x-2 px-6 py-3 rounded-full font-bold text-xl bg-green-100 text-green-700">
-                  <CheckCircle className="w-6 h-6" />
-                  <span>Answer submitted!</span>
-                </div>
-              )}
+              ) : null}
             </div>
           )}
         </div>
@@ -1405,8 +1400,11 @@ const QuizRoom = () => {
         </div>
       </nav>
 
+      {/* Mobile spacer to offset fixed header height */}
+      <div className="sm:hidden h-12"></div>
+
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 lg:py-8 mt-12 sm:mt-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 lg:py-8 mt-32 sm:mt-20 md:mt-16">
         {(quizState === 'active' || quizState === 'finished') ? (
           <div className={`${showResults && quizState === 'active' ? 'space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 gap-4 xl:gap-6' : 'space-y-6 lg:space-y-0 lg:grid lg:gap-6 lg:grid-cols-5'}`}>
             {/* Quiz Content - Mobile-first approach */}
