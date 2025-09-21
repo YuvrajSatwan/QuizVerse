@@ -23,7 +23,7 @@ const QuizDashboard = ({
   leaderboard,
   currentPlayerId,
   isHost = false,
-  // showStatsToPlayers removed - stats show automatically with results
+  mediumWidth = false, // New prop for medium-width layout when in 3-column mode
   className = ""
 }) => {
   const [isVisible, setIsVisible] = useState(true)
@@ -54,12 +54,13 @@ const QuizDashboard = ({
 
   return (
     <div className={`w-full ${className}`}>
-      {/* Dashboard Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-t-xl"
-      >
+      {/* Dashboard Header - Hidden for participants when no results shown or in mediumWidth mode */}
+      {!mediumWidth && shouldShowDashboard && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-t-xl"
+        >
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
             <BarChart3 className="w-4 h-4 text-white" />
@@ -104,11 +105,12 @@ Real-time insights and statistics
             {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
-      </motion.div>
+        </motion.div>
+      )}
 
-      {/* Settings Panel */}
+      {/* Settings Panel - Hidden for participants when no results shown or in mediumWidth mode */}
       <AnimatePresence>
-        {showSettings && isVisible && (
+        {!mediumWidth && shouldShowDashboard && showSettings && isVisible && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -146,7 +148,7 @@ Real-time insights and statistics
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-className="border-x border-b border-gray-200 rounded-b-xl bg-white overflow-hidden"
+            className={`${mediumWidth || !shouldShowDashboard ? 'border border-gray-200 rounded-xl' : 'border-x border-b border-gray-200 rounded-b-xl'} bg-white overflow-hidden`}
           >
             <div className={`p-4 ${isExpanded ? '' : 'pb-2'}`}>
               {!shouldShowDashboard ? (
@@ -162,31 +164,79 @@ className="border-x border-b border-gray-200 rounded-b-xl bg-white overflow-hidd
                 </div>
               ) : (
                 isExpanded ? (
-                  // Full Dashboard View - Simplified Layout
-                  <div className="space-y-4">
-                    {/* Main Stats - Disabled since stats are integrated into answer buttons */}
-                    {/* <OptionDistributionChart /> - Removed to avoid duplicates */}
-                    
-                    {/* Leaderboard - Show when results shown */}
-                    {leaderboard.length > 0 && (isHost || showResults) && (
-                      <RealTimeLeaderboard
-                        leaderboard={leaderboard}
-                        currentPlayerId={currentPlayerId}
-                        maxDisplay={5}
-                        isCollapsible={false}
-                        title="Top Players"
-                      />
-                    )}
-                    
-                    {/* Accuracy Summary - Show when results shown */}
-                    {showResults && (
-                      <AccuracyChart
-                        question={currentQuestion}
-                        answerStats={answerStats}
-                        showResults={showResults}
-                      />
-                    )}
-                  </div>
+                  mediumWidth ? (
+                    // Medium-width Dashboard View for 3-column layout - Better space utilization
+                    <div className="space-y-6">
+                      {shouldShowDashboard && (
+                        <div className="text-center">
+                          <h4 className="text-xl font-bold text-gray-800 mb-6 flex items-center justify-center">
+                            <BarChart3 className="w-6 h-6 mr-3 text-blue-600" />
+                            Quiz Analytics
+                          </h4>
+                        </div>
+                      )}
+                      
+                      {/* Essential metrics in improved grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                          <div className="text-2xl font-bold text-blue-600 mb-1">
+                            {leaderboard.length}
+                          </div>
+                          <div className="text-sm font-medium text-blue-700">Active Players</div>
+                        </div>
+                        
+                        <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
+                          <div className="text-2xl font-bold text-green-600 mb-1">
+                            {currentQuestionIndex + 1}/{quiz.questions.length}
+                          </div>
+                          <div className="text-sm font-medium text-green-700">Progress</div>
+                        </div>
+                      </div>
+                      
+                      {/* Additional metrics row */}
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+                          <div className="text-2xl font-bold text-purple-600 mb-1">
+                            {Math.round((leaderboard.filter(p => (p.correctAnswers || 0) > 0).length / Math.max(leaderboard.length, 1)) * 100) || 0}%
+                          </div>
+                          <div className="text-sm font-medium text-purple-700">Participation Rate</div>
+                        </div>
+                      </div>
+                      
+                      {/* Accuracy Summary - Show when results shown */}
+                      {showResults && (
+                        <AccuracyChart
+                          question={currentQuestion}
+                          answerStats={answerStats}
+                          showResults={showResults}
+                          mediumWidth={true}
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    // Full Dashboard View - Simplified Layout
+                    <div className="space-y-4">
+                      {/* Leaderboard - Show when results shown */}
+                      {leaderboard.length > 0 && (isHost || showResults) && (
+                        <RealTimeLeaderboard
+                          leaderboard={leaderboard}
+                          currentPlayerId={currentPlayerId}
+                          maxDisplay={5}
+                          isCollapsible={false}
+                          title="Top Players"
+                        />
+                      )}
+                      
+                      {/* Accuracy Summary - Show when results shown */}
+                      {showResults && (
+                        <AccuracyChart
+                          question={currentQuestion}
+                          answerStats={answerStats}
+                          showResults={showResults}
+                        />
+                      )}
+                    </div>
+                  )
                 ) : (
                   // Collapsed View - Essential metrics only
                   <div className="grid gap-3 grid-cols-2">

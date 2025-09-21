@@ -161,7 +161,12 @@ const QuizRoom = () => {
             }
             setHasAnswered(false)
             setIsSubmitting(false)
-            setTimer(data?.questionTime || 30)
+            const timerValue = data?.questionTime || 30
+            console.log('Debug - Setting timer in QuizRoom:', {
+              dataQuestionTime: data?.questionTime,
+              finalTimerValue: timerValue
+            })
+            setTimer(timerValue)
             // Refresh leaderboard when question changes to ensure consistency
             setTimeout(() => loadPlayers(), 1000)
           }
@@ -169,7 +174,12 @@ const QuizRoom = () => {
           // Reset timer when quiz becomes active or results are hidden
           if ((newState === 'active' && quizState !== 'active') || 
               (showResults && !newShowResults)) {
-            setTimer(data?.questionTime || 30)
+            const timerValue = data?.questionTime || 30
+            console.log('Debug - Resetting timer in QuizRoom:', {
+              dataQuestionTime: data?.questionTime,
+              finalTimerValue: timerValue
+            })
+            setTimer(timerValue)
           }
           
           // Refresh leaderboard when results are shown to ensure consistency
@@ -510,7 +520,7 @@ const QuizRoom = () => {
           key={currentQuestionIndex}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="card p-8"
+          className="card p-4 sm:p-6 lg:p-8 xl:p-10"
         >
           {/* Header */}
           <div className="mb-8">
@@ -600,23 +610,23 @@ const QuizRoom = () => {
         key={currentQuestionIndex}
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        className="card p-8"
+        className="card p-4 sm:p-6 lg:p-8 xl:p-10"
       >
         {/* Question Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl font-bold text-primary-600">
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+            <span className="text-lg sm:text-2xl font-bold text-primary-600">
               {currentQuestionIndex + 1}
             </span>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2">
             Question {currentQuestionIndex + 1} of {totalSteps}
           </h2>
         </div>
 
         {/* Question Text */}
-        <div className="text-center mb-8">
-          <h3 className="text-3xl font-bold text-gray-900 leading-relaxed">
+        <div className="text-center mb-6 sm:mb-8">
+          <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 leading-relaxed px-2">
             {currentQuestion.text}
           </h3>
           
@@ -624,7 +634,7 @@ const QuizRoom = () => {
           {!isHost && quizState === 'active' && !showResults && (
             <div className="mt-6 flex justify-center">
               {!hasAnswered ? (
-                <div className={`inline-flex items-center space-x-2 px-6 py-3 rounded-full font-bold text-xl ${
+                <div className={`inline-flex items-center space-x-2 px-4 sm:px-6 py-2 sm:py-3 rounded-full font-bold text-lg sm:text-xl ${
                   timer <= 0 ? 'bg-red-200 text-red-800' :
                   timer <= 5 ? 'bg-red-100 text-red-700 animate-pulse' : 
                   timer <= 10 ? 'bg-yellow-100 text-yellow-700' : 
@@ -702,7 +712,7 @@ const QuizRoom = () => {
                   )}
                   
                   {/* Content */}
-                  <div className="relative z-10 flex items-center justify-between p-4 min-h-[70px]">
+                  <div className="relative z-10 flex items-center justify-between p-3 sm:p-4 min-h-[60px] sm:min-h-[70px]">
                     <div className="flex items-center space-x-4 flex-1">
                       <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-sm ${
                         selectedAnswer === index && !isHost
@@ -713,7 +723,7 @@ const QuizRoom = () => {
                       }`}>
                         {String.fromCharCode(65 + index)}
                       </div>
-                      <span className={`text-lg font-medium flex-1 text-left ${
+                      <span className={`text-sm sm:text-lg font-medium flex-1 text-left ${
                         isCorrectAnswer ? 'text-emerald-800 font-semibold' : 'text-gray-900'
                       }`}>
                         {option}
@@ -1396,20 +1406,66 @@ const QuizRoom = () => {
       </nav>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-6 py-8 mt-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 lg:py-8 mt-12 sm:mt-16">
         {(quizState === 'active' || quizState === 'finished') ? (
-          <div className="grid gap-6 lg:grid-cols-5">
-            {/* Quiz Content */}
-            <div className="lg:col-span-3">
+          <div className={`${showResults && quizState === 'active' ? 'space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 gap-4 xl:gap-6' : 'space-y-6 lg:space-y-0 lg:grid lg:gap-6 lg:grid-cols-5'}`}>
+            {/* Quiz Content - Mobile-first approach */}
+            <div className={`${showResults && quizState === 'active' ? 'lg:col-span-5 xl:col-span-5' : 'lg:col-span-3'}`}>
               <AnimatePresence mode="wait">
                 {quizState === 'active' && renderActiveQuestion()}
                 {quizState === 'finished' && renderFinishedScreen()}
               </AnimatePresence>
             </div>
             
-            {/* Right Panel */}
-            <div className="lg:col-span-2">
-              <div className="sticky top-24">
+            {/* When showResults is true and quiz is active, show leaderboard in middle */}
+            {showResults && quizState === 'active' && (
+              <div className="lg:col-span-4 xl:col-span-3">
+                <div className="lg:sticky lg:top-24">
+                  <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 lg:p-6 h-fit">
+                    <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                      <span className="text-xl mr-2">🏆</span>
+                      Leaderboard
+                    </h4>
+                    <div className="space-y-2 sm:space-y-3 max-h-[400px] sm:max-h-[600px] lg:max-h-[700px] overflow-y-auto">
+                      {(statsLeaderboard.length > 0 ? statsLeaderboard : leaderboard || []).slice(0, 20).map((player, index) => (
+                        <div
+                          key={player.id}
+                          className={`flex items-center justify-between p-4 rounded-xl border transition-colors hover:shadow-sm ${
+                            index === 0 ? 'bg-yellow-50 border-yellow-200' :
+                            index === 1 ? 'bg-gray-50 border-gray-200' :
+                            index === 2 ? 'bg-orange-50 border-orange-200' :
+                            'bg-white border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                              index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-500' : 'bg-gray-300 text-gray-800'
+                            }`}>
+                              {index + 1}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-gray-900 truncate">{player.name}</div>
+                              <div className="text-xs text-gray-600">{player.correctAnswers || 0}/{quiz.questions?.length || 0} correct</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-gray-900">{player.score} pts</div>
+                            <div className="text-xs text-gray-600">{(quiz.questions?.length || 0) > 0 ? Math.round(((player.correctAnswers || 0) / (quiz.questions?.length || 0)) * 100) : 0}%</div>
+                          </div>
+                        </div>
+                      ))}
+                      {(!statsLeaderboard || statsLeaderboard.length === 0) && (!leaderboard || leaderboard.length === 0) && (
+                        <div className="text-sm text-gray-600">No participants yet.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Right Panel - Stats or QuizDashboard */}
+            <div className={`${showResults && quizState === 'active' ? 'lg:col-span-3 xl:col-span-4' : 'lg:col-span-2'}`}>
+              <div className="lg:sticky lg:top-24">
                 {quizState === 'finished' ? (
                   // Show final leaderboard instead of analytics
                   <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
@@ -1458,6 +1514,7 @@ const QuizRoom = () => {
                     currentPlayerId={playerId}
                     isHost={isHost}
                     className="transition-all duration-300"
+                    mediumWidth={showResults && quizState === 'active'} // Pass mediumWidth prop when in 3-column layout
                   />
                 )}
               </div>
@@ -1471,6 +1528,7 @@ const QuizRoom = () => {
             </AnimatePresence>
           </div>
         )}
+        
       </div>
     </div>
   )

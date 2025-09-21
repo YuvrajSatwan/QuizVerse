@@ -91,7 +91,7 @@ const QuizSummary = ({ quiz, leaderboard, isVisible = false, quizId }) => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 mb-6"
+      className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 sm:p-6 mb-6"
     >
       <div className="mb-6">
         <div className="flex items-center justify-between">
@@ -100,31 +100,31 @@ const QuizSummary = ({ quiz, leaderboard, isVisible = false, quizId }) => {
               <BarChart3 className="w-6 h-6 text-primary-600" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-gray-900">Quiz Summary</h3>
-              <p className="text-gray-600">Complete results for "{quiz.title}"</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-900">Quiz Summary</h3>
+              <p className="text-sm sm:text-base text-gray-600">Complete results for "{quiz.title}"</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Key Statistics (includes rating) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
-          className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 text-center"
+          className="bg-blue-50 border-2 border-blue-200 rounded-xl p-3 sm:p-4 text-center"
         >
-          <Users className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-          <div className="text-2xl font-bold text-blue-900">{totalParticipants}</div>
-          <div className="text-sm text-blue-700">Participants</div>
+          <Users className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 mx-auto mb-2" />
+          <div className="text-xl sm:text-2xl font-bold text-blue-900">{totalParticipants}</div>
+          <div className="text-xs sm:text-sm text-blue-700">Participants</div>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2 }}
-          className="bg-green-50 border-2 border-green-200 rounded-xl p-4 text-center"
+          className="bg-green-50 border-2 border-green-200 rounded-xl p-3 sm:p-4 text-center"
         >
           <Target className="w-8 h-8 text-green-600 mx-auto mb-2" />
           <div className="text-2xl font-bold text-green-900">{overallAccuracy}%</div>
@@ -135,7 +135,7 @@ const QuizSummary = ({ quiz, leaderboard, isVisible = false, quizId }) => {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3 }}
-          className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 text-center"
+          className="bg-purple-50 border-2 border-purple-200 rounded-xl p-3 sm:p-4 text-center"
         >
           <Trophy className="w-8 h-8 text-purple-600 mx-auto mb-2" />
           <div className="text-2xl font-bold text-purple-900">{averageScore}</div>
@@ -147,7 +147,7 @@ const QuizSummary = ({ quiz, leaderboard, isVisible = false, quizId }) => {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.4 }}
-          className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4 text-center"
+          className="bg-orange-50 border-2 border-orange-200 rounded-xl p-3 sm:p-4 text-center"
         >
           <CheckCircle className="w-8 h-8 text-orange-600 mx-auto mb-2" />
           <div className="text-2xl font-bold text-orange-900">{totalCorrectAnswers}</div>

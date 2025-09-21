@@ -263,6 +263,21 @@ const CreateQuiz = () => {
         }
       }
     }
+    
+    // Validate timer - check if questionTime is valid and at least 5 seconds
+    const questionTime = Number(formData.questionTime)
+    if (!formData.questionTime || formData.questionTime === '' || isNaN(questionTime)) {
+      error('Please enter a valid timer value for questions.')
+      return
+    }
+    if (questionTime < 5) {
+      error(`Question timer must be at least 5 seconds. Current value: ${questionTime} seconds. Please increase the timer.`)
+      return
+    }
+    if (questionTime > 300) {
+      error('Question timer cannot exceed 300 seconds (5 minutes). Please set a shorter timer.')
+      return
+    }
 
         setIsSubmitting(true)
 
@@ -280,10 +295,20 @@ const CreateQuiz = () => {
       const hostId = Date.now().toString() + Math.random().toString(36).substr(2, 9)
       
       const sanitizedQuestionTime = Number(formData.questionTime) || 30
+      
+      // Debug logging for timer values
+      console.log('Debug - Timer values:', {
+        originalInput: formData.questionTime,
+        parsedNumber: Number(formData.questionTime),
+        sanitizedValue: sanitizedQuestionTime
+      })
 
       const quizData = {
-        ...formData,
-        questionTime: sanitizedQuestionTime,
+        title: formData.title,
+        description: formData.description,
+        showAnswers: formData.showAnswers,
+        enableRating: formData.enableRating,
+        questionTime: sanitizedQuestionTime, // Use sanitized value explicitly
         questions: questions.map(q => ({
           text: q.text,
           type: q.type,
@@ -826,15 +851,32 @@ const CreateQuiz = () => {
                             value={formData.questionTime}
                             onChange={(e) => {
                               const val = e.target.value
+                              
+                              // Allow empty string for user to clear the input
                               if (val === '') {
                                 setFormData({ ...formData, questionTime: '' })
-                              } else {
-                                const num = Math.max(5, Math.min(300, parseInt(val) || 0))
+                                return
+                              }
+                              
+                              // Parse the input value
+                              const num = parseInt(val, 10)
+                              
+                              // Only update if it's a valid number, but don't clamp it
+                              // Let the user enter any value and validate on submit
+                              if (!isNaN(num) && num >= 0) {
                                 setFormData({ ...formData, questionTime: num })
                               }
                             }}
+                            onWheel={(e) => {
+                              // Prevent wheel events from changing the number input value
+                              e.target.blur()
+                            }}
+                            onFocus={(e) => {
+                              // Select all text when focused for easier editing
+                              e.target.select()
+                            }}
                             className="w-full px-4 py-3 sm:py-4 pr-14 sm:pr-16 border-2 border-gray-200 rounded-2xl focus:border-primary-500 focus:ring-4 focus:ring-primary-200 transition-all duration-200 text-base sm:text-lg"
-                            min="5"
+                            min="1"
                             max="300"
                             placeholder="30"
                           />
@@ -842,7 +884,7 @@ const CreateQuiz = () => {
                             sec
                           </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">Recommended: 30-60 seconds</p>
+                        <p className="text-xs text-gray-500 mt-2">Minimum: 5 seconds | Recommended: 30-60 seconds</p>
                       </div>
                       
                       <div>
