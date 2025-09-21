@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { 
   Play, 
@@ -15,8 +15,10 @@ import { db } from '../firebase/config'
 
 const JoinQuiz = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { joinQuiz } = useQuiz()
   const { success, error } = useToast()
+  const nameInputRef = useRef(null)
   
   const [formData, setFormData] = useState({
     quizCode: '',
@@ -24,6 +26,19 @@ const JoinQuiz = () => {
   })
   
   const [isJoining, setIsJoining] = useState(false)
+
+  // Prefill code from query param and focus name for minimal flow
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const code = (params.get('code') || '').toUpperCase()
+    if (code && code.length === 6) {
+      setFormData((prev) => ({ ...prev, quizCode: code }))
+    }
+    // Focus name input for quick entry
+    if (nameInputRef.current) {
+      nameInputRef.current.focus()
+    }
+  }, [location.search])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -101,21 +116,25 @@ const JoinQuiz = () => {
           transition={{ delay: 0.1 }}
           className="bg-white rounded-2xl shadow-lg p-8"
         >
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <input
-                type="text"
-                value={formData.quizCode}
-                onChange={(e) => setFormData({ ...formData, quizCode: e.target.value.toUpperCase() })}
-                className="w-full text-center text-3xl font-mono tracking-widest border-2 border-gray-200 rounded-xl py-4 px-6 focus:border-primary-500 focus:outline-none transition-colors"
-                placeholder="QUIZ CODE"
-                maxLength={6}
-                required
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Code input only when not provided via link */}
+            {!formData.quizCode && (
+              <div>
+                <input
+                  type="text"
+                  value={formData.quizCode}
+                  onChange={(e) => setFormData({ ...formData, quizCode: e.target.value.toUpperCase() })}
+                  className="w-full text-center text-3xl font-mono tracking-widest border-2 border-gray-200 rounded-xl py-4 px-6 focus:border-primary-500 focus:outline-none transition-colors"
+                  placeholder="QUIZ CODE"
+                  maxLength={6}
+                  required
+                />
+              </div>
+            )}
 
             <div>
               <input
+                ref={nameInputRef}
                 type="text"
                 value={formData.playerName}
                 onChange={(e) => setFormData({ ...formData, playerName: e.target.value })}

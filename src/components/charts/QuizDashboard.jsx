@@ -148,7 +148,7 @@ Real-time insights and statistics
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            className={`${mediumWidth || !shouldShowDashboard ? 'border border-gray-200 rounded-xl' : 'border-x border-b border-gray-200 rounded-b-xl'} bg-white overflow-hidden`}
+            className={`${mediumWidth || !shouldShowDashboard ? 'rounded-xl' : 'rounded-b-xl'} bg-white overflow-hidden`}
           >
             <div className={`p-4 ${isExpanded ? '' : 'pb-2'}`}>
               {!shouldShowDashboard ? (
@@ -173,6 +173,18 @@ Real-time insights and statistics
                             <BarChart3 className="w-6 h-6 mr-3 text-blue-600" />
                             Quiz Analytics
                           </h4>
+                          {/* Participant Rank Chip (per-question), shown during results */}
+                          {showResults && !isHost && currentPlayerId && (leaderboard || []).length > 0 && (() => {
+                            const idx = (leaderboard || []).findIndex(p => p.id === currentPlayerId)
+                            return idx >= 0 ? (
+                              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary-50 to-secondary-50 border border-primary-200 text-sm text-primary-700 shadow-sm mb-4">
+                                <span className="font-semibold">Your Rank:</span>
+                                <span className="font-mono tracking-widest text-gray-900">{idx + 1}</span>
+                                <span className="text-gray-500">of</span>
+                                <span className="font-mono text-gray-900">{(leaderboard || []).length}</span>
+                              </div>
+                            ) : null
+                          })()}
                         </div>
                       )}
                       
@@ -207,6 +219,20 @@ Real-time insights and statistics
                   ) : (
                     // Full Dashboard View - Simplified Layout
                     <div className="space-y-4">
+                      {/* Participant Rank Chip (per-question), shown during results */}
+                      {showResults && !isHost && currentPlayerId && (leaderboard || []).length > 0 && (() => {
+                        const idx = (leaderboard || []).findIndex(p => p.id === currentPlayerId)
+                        return idx >= 0 ? (
+                          <div className="text-center">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary-50 to-secondary-50 border border-primary-200 text-sm text-primary-700 shadow-sm">
+                              <span className="font-semibold">Your Rank:</span>
+                              <span className="font-mono tracking-widest text-gray-900">{idx + 1}</span>
+                              <span className="text-gray-500">of</span>
+                              <span className="font-mono text-gray-900">{(leaderboard || []).length}</span>
+                            </div>
+                          </div>
+                        ) : null
+                      })()}
                       {/* Leaderboard - Show when results shown */}
                       {leaderboard.length > 0 && (isHost || showResults) && (
                         <RealTimeLeaderboard

@@ -156,6 +156,18 @@ const QuizSummary = ({ quiz, leaderboard, isVisible = false, quizId }) => {
             <div className="text-sm text-yellow-700">Average Rating</div>
           </motion.div>
         )}
+        {!quiz.enableRating && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5 }}
+            className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 text-center"
+          >
+            <Star className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
+            <div className="text-2xl font-bold text-yellow-900">—</div>
+            <div className="text-sm text-yellow-700">No ratings option given</div>
+          </motion.div>
+        )}
       </div>
 
       {/* Anonymous Feedback Section */}

@@ -1262,6 +1262,16 @@ const QuizRoom = () => {
                 />
               </motion.div>
               
+              {/* Room Code (Host only) */}
+              {isHost && (
+                <div className="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-full border font-medium text-sm shadow-sm bg-gradient-to-r from-purple-50 to-primary-50 text-purple-700 border-purple-200">
+                  <span className="text-xs text-gray-500 font-semibold">Code</span>
+                  <span className="font-mono tracking-widest text-gray-900">
+                    {quizId.slice(-6).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              
               {/* User Role */}
               <div className={`px-3 py-1.5 rounded-full text-xs font-medium border shadow-sm ${
                 isHost ? 'bg-gradient-to-r from-yellow-50 to-amber-50 text-amber-700 border-amber-200' : 'bg-gradient-to-r from-primary-50 to-secondary-50 text-primary-700 border-primary-200'
@@ -1404,9 +1414,9 @@ const QuizRoom = () => {
       <div className="sm:hidden h-12"></div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 lg:py-8 mt-32 sm:mt-20 md:mt-16">
+      <div className="max-w-[110rem] mx-auto px-4 sm:px-6 py-4 sm:py-6 lg:py-8 mt-32 sm:mt-20 md:mt-16">
         {(quizState === 'active' || quizState === 'finished') ? (
-          <div className={`${showResults && quizState === 'active' ? 'space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 gap-4 xl:gap-6' : 'space-y-6 lg:space-y-0 lg:grid lg:gap-6 lg:grid-cols-5'}`}>
+          <div className={`${showResults && quizState === 'active' ? 'space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 gap-3 xl:gap-3' : 'space-y-6 lg:space-y-0 lg:grid lg:gap-6 lg:grid-cols-5'}`}>
             {/* Quiz Content - Mobile-first approach */}
             <div className={`${showResults && quizState === 'active' ? 'lg:col-span-5 xl:col-span-5' : 'lg:col-span-3'}`}>
               <AnimatePresence mode="wait">
@@ -1415,54 +1425,30 @@ const QuizRoom = () => {
               </AnimatePresence>
             </div>
             
-            {/* When showResults is true and quiz is active, show leaderboard in middle */}
+            {/* When showResults is true and quiz is active, show STATS in the middle */}
             {showResults && quizState === 'active' && (
-              <div className="lg:col-span-4 xl:col-span-3">
+              <div className="lg:col-span-4 xl:col-span-4">
                 <div className="lg:sticky lg:top-24">
-                  <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 lg:p-6 h-fit">
-                    <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                      <span className="text-xl mr-2">🏆</span>
-                      Leaderboard
-                    </h4>
-                    <div className="space-y-2 sm:space-y-3 max-h-[400px] sm:max-h-[600px] lg:max-h-[700px] overflow-y-auto">
-                      {(statsLeaderboard.length > 0 ? statsLeaderboard : leaderboard || []).slice(0, 20).map((player, index) => (
-                        <div
-                          key={player.id}
-                          className={`flex items-center justify-between p-4 rounded-xl border transition-colors hover:shadow-sm ${
-                            index === 0 ? 'bg-yellow-50 border-yellow-200' :
-                            index === 1 ? 'bg-gray-50 border-gray-200' :
-                            index === 2 ? 'bg-orange-50 border-orange-200' :
-                            'bg-white border-gray-200'
-                          }`}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
-                              index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-500' : 'bg-gray-300 text-gray-800'
-                            }`}>
-                              {index + 1}
-                            </div>
-                            <div>
-                              <div className="font-semibold text-gray-900 truncate">{player.name}</div>
-                              <div className="text-xs text-gray-600">{player.correctAnswers || 0}/{quiz.questions?.length || 0} correct</div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-gray-900">{player.score} pts</div>
-                            <div className="text-xs text-gray-600">{(quiz.questions?.length || 0) > 0 ? Math.round(((player.correctAnswers || 0) / (quiz.questions?.length || 0)) * 100) : 0}%</div>
-                          </div>
-                        </div>
-                      ))}
-                      {(!statsLeaderboard || statsLeaderboard.length === 0) && (!leaderboard || leaderboard.length === 0) && (
-                        <div className="text-sm text-gray-600">No participants yet.</div>
-                      )}
-                    </div>
+                  <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 lg:p-6">
+                    <QuizDashboard
+                      quiz={quiz}
+                      currentQuestion={quiz?.questions[currentQuestionIndex]}
+                      currentQuestionIndex={currentQuestionIndex}
+                      showResults={showResults}
+                      answerStats={(isHost || showResults) ? (statsAnswerStats || {}) : {}}
+                      leaderboard={(isHost || showResults) ? (statsLeaderboard.length > 0 ? statsLeaderboard : leaderboard) : []}
+                      currentPlayerId={playerId}
+                      isHost={isHost}
+                      className="transition-all duration-300"
+                      mediumWidth
+                    />
                   </div>
                 </div>
               </div>
             )}
             
-            {/* Right Panel - Stats or QuizDashboard */}
-            <div className={`${showResults && quizState === 'active' ? 'lg:col-span-3 xl:col-span-4' : 'lg:col-span-2'}`}>
+            {/* Right Panel - Leaderboard when active+results, Stats/Final Leaderboard otherwise */}
+            <div className={`${showResults && quizState === 'active' ? 'lg:col-span-3 xl:col-span-3' : 'lg:col-span-2'}`}>
               <div className="lg:sticky lg:top-24">
                 {quizState === 'finished' ? (
                   // Show final leaderboard instead of analytics
@@ -1502,18 +1488,60 @@ const QuizRoom = () => {
                     </div>
                   </div>
                 ) : (
-                  <QuizDashboard
-                    quiz={quiz}
-                    currentQuestion={quiz?.questions[currentQuestionIndex]}
-                    currentQuestionIndex={currentQuestionIndex}
-                    showResults={showResults}
-                    answerStats={(isHost || showResults) ? (statsAnswerStats || {}) : {}}
-                    leaderboard={(isHost || showResults) ? (statsLeaderboard.length > 0 ? statsLeaderboard : leaderboard) : []}
-                    currentPlayerId={playerId}
-                    isHost={isHost}
-                    className="transition-all duration-300"
-                    mediumWidth={showResults && quizState === 'active'} // Pass mediumWidth prop when in 3-column layout
-                  />
+                  // When active+results, show Leaderboard on the right; otherwise show stats
+                  showResults && quizState === 'active' ? (
+                    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 lg:p-6 h-fit">
+                      <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                        <span className="text-xl mr-2">🏆</span>
+                        Leaderboard
+                      </h4>
+                      <div className="space-y-2 sm:space-y-3 max-h-[400px] sm:max-h-[600px] lg:max-h-[700px] overflow-y-auto">
+                        {(statsLeaderboard.length > 0 ? statsLeaderboard : leaderboard || []).slice(0, 20).map((player, index) => (
+                          <div
+                            key={player.id}
+                            className={`flex items-center justify-between p-4 rounded-xl border transition-colors hover:shadow-sm ${
+                              index === 0 ? 'bg-yellow-50 border-yellow-200' :
+                              index === 1 ? 'bg-gray-50 border-gray-200' :
+                              index === 2 ? 'bg-orange-50 border-orange-200' :
+                              'bg-white border-gray-200'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                                index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-500' : 'bg-gray-300 text-gray-800'
+                              }`}>
+                                {index + 1}
+                              </div>
+                              <div>
+                                <div className="font-semibold text-gray-900 truncate">{player.name}</div>
+                                <div className="text-xs text-gray-600">{player.correctAnswers || 0}/{quiz.questions?.length || 0} correct</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-lg font-bold text-gray-900">{player.score} pts</div>
+                              <div className="text-xs text-gray-600">{(quiz.questions?.length || 0) > 0 ? Math.round(((player.correctAnswers || 0) / (quiz.questions?.length || 0)) * 100) : 0}%</div>
+                            </div>
+                          </div>
+                        ))}
+                        {(!statsLeaderboard || statsLeaderboard.length === 0) && (!leaderboard || leaderboard.length === 0) && (
+                          <div className="text-sm text-gray-600">No participants yet.</div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <QuizDashboard
+                      quiz={quiz}
+                      currentQuestion={quiz?.questions[currentQuestionIndex]}
+                      currentQuestionIndex={currentQuestionIndex}
+                      showResults={showResults}
+                      answerStats={(isHost || showResults) ? (statsAnswerStats || {}) : {}}
+                      leaderboard={(isHost || showResults) ? (statsLeaderboard.length > 0 ? statsLeaderboard : leaderboard) : []}
+                      currentPlayerId={playerId}
+                      isHost={isHost}
+                      className="transition-all duration-300"
+                      mediumWidth={showResults && quizState === 'active'}
+                    />
+                  )
                 )}
               </div>
             </div>

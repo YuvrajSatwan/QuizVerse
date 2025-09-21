@@ -99,60 +99,10 @@ const AccuracyChart = ({ question, answerStats, showResults = false, compact = f
         </div>
       </div>
 
-      {/* Main Accuracy Display */}
-      <div className={`text-center ${compact ? 'mb-4' : mediumWidth ? 'mb-5' : 'mb-8'}`}>
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.3, duration: 0.6, type: "spring" }}
-          className={`inline-flex items-center justify-center ${compact ? 'w-16 h-16' : mediumWidth ? 'w-20 h-20' : 'w-24 h-24'} rounded-full ${compact ? 'mb-2' : mediumWidth ? 'mb-3' : 'mb-4'} ${
-            percentage >= 70 
-              ? 'bg-gradient-to-br from-green-400 to-green-500' 
-              : percentage >= 50
-              ? 'bg-gradient-to-br from-yellow-400 to-orange-500'
-              : 'bg-gradient-to-br from-red-400 to-red-500'
-          }`}
-        >
-          <span className={`${compact ? 'text-lg' : mediumWidth ? 'text-xl' : 'text-2xl'} font-bold text-white`}>
-            {percentage}%
-          </span>
-        </motion.div>
+      {/* Main Accuracy Display - removed loader and percent as requested */}
+      <div className={`${compact ? 'mb-2' : mediumWidth ? 'mb-3' : 'mb-4'}`} />
 
-        {!compact && !mediumWidth && (
-          <>
-            <h4 className="text-xl font-bold text-gray-900 mb-2">
-              {percentage >= 70 
-                ? "Great Job! 🎉" 
-                : percentage >= 50
-                ? "Not Bad! 👍"
-                : "Keep Learning! 📚"
-              }
-            </h4>
-            <p className="text-gray-600">
-              {correct} out of {total} participants got it right
-            </p>
-          </>
-        )}
-        
-        {mediumWidth && (
-          <>
-            <h4 className="text-lg font-bold text-gray-900 mb-2">
-              {percentage >= 70 ? "Great! 🎉" : percentage >= 50 ? "Good 👍" : "Keep trying 📚"}
-            </h4>
-            <p className="text-sm text-gray-600">
-              {correct}/{total} got it right
-            </p>
-          </>
-        )}
-        
-        {compact && (
-          <p className="text-xs text-gray-600">
-            {correct}/{total} correct
-          </p>
-        )}
-      </div>
-
-      {/* Progress Bar - Hidden in compact and mediumWidth modes */}
+      {/* Accuracy progress bar (restored) */}
       {!compact && !mediumWidth && (
         <div className="mb-8">
           <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
@@ -190,7 +140,7 @@ const AccuracyChart = ({ question, answerStats, showResults = false, compact = f
         </div>
       ) : mediumWidth ? (
         <>
-          {/* Progress Bar for medium width */}
+          {/* Accuracy progress bar for medium width (restored) */}
           <div className="mb-5">
             <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
               <span>Accuracy Rate</span>

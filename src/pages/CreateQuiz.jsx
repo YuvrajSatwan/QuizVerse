@@ -28,7 +28,8 @@ import {
   Target,
   BookOpen,
   Lightbulb,
-  X
+  X,
+  Link2
 } from 'lucide-react'
 import { useQuiz } from '../contexts/QuizContext'
 import { useToast } from '../contexts/ToastContext'
@@ -63,6 +64,7 @@ const CreateQuiz = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quizCode, setQuizCode] = useState(null)
   const [copySuccess, setCopySuccess] = useState(false)
+  const [copyLinkSuccess, setCopyLinkSuccess] = useState(false)
   
   // Auto-save states
   const [autoSaveStatus, setAutoSaveStatus] = useState('saved') // 'saving', 'saved', 'error'
@@ -132,6 +134,13 @@ const CreateQuiz = () => {
   useEffect(() => {
     setHasUnsavedChanges(true)
   }, [formData, questions])
+
+  // Scroll to top when success screen (quizCode) is shown to avoid landing mid-page
+  useEffect(() => {
+    if (quizCode) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    }
+  }, [quizCode])
 
   const addQuestion = () => {
     const newQuestion = {
@@ -515,9 +524,9 @@ const CreateQuiz = () => {
 
   if (quizCode) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50">
         {/* Header */}
-        <div className="glass border-b border-white/20 px-4 sm:px-6 py-4">
+        <div className="backdrop-blur-xl bg-white/70 border-b border-white/20 px-4 sm:px-6 py-4">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -535,16 +544,16 @@ const CreateQuiz = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-8">
-          <div className="w-full max-w-md">
+        <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-6">
+          <div className="w-full max-w-lg">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-center space-y-6"
+              className="text-center space-y-5"
             >
               {/* Success Header */}
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
@@ -554,12 +563,9 @@ const CreateQuiz = () => {
                   <CheckCircle className="w-7 h-7 text-white" />
                 </motion.div>
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-0.5">
                     Quiz Ready! 🎉
                   </h1>
-                  <p className="text-gray-600 text-sm">
-                    Share this code with participants
-                  </p>
                 </div>
               </div>
 
@@ -568,17 +574,14 @@ const CreateQuiz = () => {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.3, duration: 0.5 }}
-                className="card p-6 relative overflow-hidden"
+                className="bg-white border border-gray-100 rounded-2xl shadow-xl p-4 sm:p-5"
               >
-                {/* Background decoration */}
-                <div className="absolute inset-0 bg-gradient-to-br from-primary-50/50 to-secondary-50/50 opacity-30" />
-                
-                <div className="relative space-y-4">
+                <div className="space-y-4">
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
                       Quiz Code
                     </p>
-                    <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-wider font-mono">
+                    <div className="text-4xl sm:text-5xl font-black text-gray-900 tracking-widest font-mono">
                       {quizCode}
                     </div>
                   </div>
@@ -587,10 +590,10 @@ const CreateQuiz = () => {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={copyToClipboard}
-                    className={`btn transition-all duration-300 ${
+                    className={`btn btn-primary transition-all duration-300 ${
                       copySuccess 
-                        ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-glow' 
-                        : 'btn-primary'
+                        ? '!bg-gradient-to-r from-green-500 to-green-600 !text-white shadow-glow' 
+                        : ''
                     }`}
                   >
                     {copySuccess ? (
@@ -605,6 +608,61 @@ const CreateQuiz = () => {
                       </>
                     )}
                   </motion.button>
+
+                  {/* Shareable Join Link */}
+                  <div className="mt-3 text-left">
+                    <div className="rounded-2xl border border-primary-200/60 bg-gradient-to-r from-primary-50 to-secondary-50 p-4 shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white shadow-sm border border-primary-100">
+                            <Link2 className="w-4 h-4 text-primary-600" />
+                          </span>
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900">Share with participants</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={`${window.location.origin}/join?code=${quizCode || ''}`}
+                          className="flex-1 px-3 py-2 rounded-xl border border-primary-200 bg-white text-sm text-gray-800 select-all shadow-inner"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const link = `${window.location.origin}/join?code=${quizCode || ''}`
+                              await navigator.clipboard.writeText(link)
+                              setCopyLinkSuccess(true)
+                              setTimeout(() => setCopyLinkSuccess(false), 2000)
+                            } catch {
+                              // Fallback
+                              const link = `${window.location.origin}/join?code=${quizCode || ''}`
+                              const ta = document.createElement('textarea')
+                              ta.value = link
+                              document.body.appendChild(ta)
+                              ta.select()
+                              document.execCommand('copy')
+                              document.body.removeChild(ta)
+                              setCopyLinkSuccess(true)
+                              setTimeout(() => setCopyLinkSuccess(false), 2000)
+                            }
+                          }}
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm ${
+                            copyLinkSuccess
+                              ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
+                              : 'bg-gradient-to-r from-primary-500 to-primary-600 text-white hover:from-primary-600 hover:to-primary-700'
+                          }`}
+                          aria-label="Copy share link"
+                        >
+                          <Copy className="w-4 h-4" />
+                          {copyLinkSuccess ? 'Copied' : 'Copy Link'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
 
@@ -613,7 +671,7 @@ const CreateQuiz = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4, duration: 0.5 }}
-                className="card p-4 text-left"
+                className="bg-white border border-gray-100 rounded-2xl shadow-lg p-3.5 text-left"
               >
                 <h3 className="text-base font-bold text-gray-900 mb-1">
                   {formData.title}
@@ -621,7 +679,14 @@ const CreateQuiz = () => {
                 <div className="flex items-center space-x-4 text-xs text-gray-600">
                   <span>{questions.length} questions</span>
                   <span>•</span>
-                  <span>{formData.questionTime}s each</span>
+                  <span>
+                    Total time {(() => {
+                      const totalSeconds = questions.length * (Number(formData.questionTime) || 30)
+                      const minutes = Math.floor(totalSeconds / 60)
+                      const seconds = totalSeconds % 60
+                      return minutes > 0 ? `${minutes} min${seconds ? ` ${seconds}s` : ''}` : `${seconds}s`
+                    })()}
+                  </span>
                 </div>
               </motion.div>
 
@@ -807,14 +872,7 @@ const CreateQuiz = () => {
                         placeholder="e.g., 'Science Quiz for Grade 5'"
                         required
                       />
-                      <div className="mt-2 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
-                        <p className="text-xs text-gray-500">Choose a clear, descriptive title</p>
-                        <span className={`text-xs font-medium self-start sm:self-auto ${
-                          formData.title.length > 50 ? 'text-red-500' : 'text-gray-400'
-                        }`}>
-                          {formData.title.length}/50
-                        </span>
-                      </div>
+                      
                     </div>
                     
                     <div>
@@ -829,14 +887,7 @@ const CreateQuiz = () => {
                         rows="3"
                         placeholder="Optional: Add a brief description..."
                       />
-                      <div className="mt-2 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
-                        <p className="text-xs text-gray-500">Help participants understand the quiz content</p>
-                        <span className={`text-xs font-medium self-start sm:self-auto ${
-                          formData.description.length > 200 ? 'text-red-500' : 'text-gray-400'
-                        }`}>
-                          {formData.description.length}/200
-                        </span>
-                      </div>
+                      
                     </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -884,7 +935,7 @@ const CreateQuiz = () => {
                             sec
                           </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">Minimum: 5 seconds | Recommended: 30-60 seconds</p>
+                        
                       </div>
                       
                       <div>
@@ -900,7 +951,7 @@ const CreateQuiz = () => {
                           <option value="live">Show immediately</option>
                           <option value="after">Show after quiz ends</option>
                         </select>
-                        <p className="text-xs text-gray-500 mt-2">When should participants see correct answers?</p>
+                        
                       </div>
                     </div>
                   </div>
@@ -953,7 +1004,7 @@ const CreateQuiz = () => {
                         <motion.div
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="flex items-center space-x-2 text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3"
+                          className="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
                         >
                           <GripVertical className="w-4 h-4 text-blue-500" />
                           <span>💡 Drag questions by the grip handle to reorder them</span>
@@ -973,11 +1024,11 @@ const CreateQuiz = () => {
                             onDragLeave={handleDragLeave}
                             onDrop={(e) => handleDrop(e, index)}
                             onDragEnd={handleDragEnd}
-                            className={`bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-2xl border-2 overflow-hidden group transition-all duration-300 cursor-move ${
+                            className={`bg-white rounded-2xl border-2 overflow-hidden group transition-all duration-300 cursor-move ${
                               draggedItem === index 
-                                ? 'border-primary-500 shadow-2xl scale-105 opacity-75 rotate-2'
+                                ? 'border-primary-400 shadow-lg scale-[1.02] opacity-95'
                                 : dragOverIndex === index 
-                                ? 'border-primary-400 shadow-lg scale-102 border-dashed bg-primary-50'
+                                ? 'border-primary-300 shadow-md bg-primary-50'
                                 : 'border-gray-200 hover:shadow-lg hover:border-primary-200'
                             }`}
                           >
@@ -1170,14 +1221,7 @@ const CreateQuiz = () => {
                                       </div>
                                     ))}
                                   </div>
-                                  <div className="mt-3 space-y-1">
-                                    <p className="text-xs text-gray-500">
-                                      💡 Select the radio button to mark the correct answer
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                      ⚠️ Exact duplicate options are not allowed (case-sensitive). "Apple" and "apple" are different.
-                                    </p>
-                                  </div>
+                                  
                                 </div>
                               )}
 
