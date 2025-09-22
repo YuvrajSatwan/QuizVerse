@@ -10,6 +10,7 @@ import JoinQuiz from './pages/JoinQuiz'
 import QuizRoom from './pages/QuizRoom'
 import FirebaseDiagnostic from './components/FirebaseDiagnostic'
 import ToastContainer from './components/ToastContainer'
+import MyQuizzes from './pages/MyQuizzes'
 
 // Component to handle conditional navbar rendering
 function AppContent() {
@@ -25,6 +26,7 @@ function AppContent() {
         <Route path="/join" element={<JoinQuiz />} />
         <Route path="/quiz/:quizId" element={<QuizRoom />} />
         <Route path="/diagnostic" element={<FirebaseDiagnostic />} />
+        <Route path="/my-quizzes" element={<MyQuizzes />} />
       </Routes>
       <ToastContainer />
     </div>

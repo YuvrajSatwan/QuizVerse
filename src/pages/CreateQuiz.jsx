@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Plus, 
@@ -36,6 +36,7 @@ import { useToast } from '../contexts/ToastContext'
 import { useAuth } from '../contexts/AuthContext'
 import { testFirebaseConnection } from '../firebase/config'
 import AuthenticationModal from '../components/AuthenticationModal'
+import { saveDraft as saveDraftRemote, updateDraft as updateDraftRemote, getDraft as getDraftRemote } from '../services/DraftsService'
 
 const CreateQuiz = () => {
   const navigate = useNavigate()
@@ -65,6 +66,11 @@ const CreateQuiz = () => {
   const [quizCode, setQuizCode] = useState(null)
   const [copySuccess, setCopySuccess] = useState(false)
   const [copyLinkSuccess, setCopyLinkSuccess] = useState(false)
+  
+  // Draft state
+  const [draftId, setDraftId] = useState(null)
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [searchParams] = useSearchParams()
   
   // Auto-save states
   const [autoSaveStatus, setAutoSaveStatus] = useState('saved') // 'saving', 'saved', 'error'
@@ -99,36 +105,49 @@ const CreateQuiz = () => {
     }
   }, [])
 
-  // Auto-save functionality
-  const saveToLocalStorage = useCallback(() => {
-    try {
-      const draftData = {
-        formData,
-        questions,
-        timestamp: Date.now()
-      }
-      localStorage.setItem('quizDraft', JSON.stringify(draftData))
-      setAutoSaveStatus('saved')
-      setLastSaved(new Date())
-      setHasUnsavedChanges(false)
-      // Auto-saved quiz draft
-    } catch (error) {
-      console.error('Failed to save quiz draft:', error)
-      setAutoSaveStatus('error')
-    }
-  }, [formData, questions])
-
-  // Auto-save every 30 seconds when there are unsaved changes
+  // Load draft from Firestore if draftId is present
   useEffect(() => {
-    if (!hasUnsavedChanges) return
+    const id = searchParams.get('draftId')
+    const launchedId = searchParams.get('launchedId')
+    const passedCode = searchParams.get('code')
+    const load = async () => {
+      try {
+        // Load remote draft for editing
+        if (id && currentUser && !currentUser.isGuest) {
+          const draft = await getDraftRemote(currentUser.uid, id)
+          if (draft && draft.formData && draft.questions) {
+            setFormData(draft.formData)
+            setQuestions(draft.questions)
+            setDraftId(draft.id)
+            setLastSaved(new Date())
+            setHasUnsavedChanges(false)
+          }
+        }
+        // Show success screen for launched quiz
+        if (launchedId) {
+          const code = passedCode || launchedId.slice(-6).toUpperCase()
+          setQuizCode(code)
+          // Optionally restore title for the success info card
+          try {
+            const metaRaw = sessionStorage.getItem('launchedDraftMeta')
+            if (metaRaw) {
+              const meta = JSON.parse(metaRaw)
+              setFormData(prev => ({
+                ...prev,
+                title: meta.title || prev.title,
+                questionTime: meta.questionTime || prev.questionTime
+              }))
+              // We won't modify questions array here; info card uses counts only
+            }
+          } catch {}
+        }
+      } catch (e) {
+        console.error('Failed to load draft or launched quiz info:', e)
+      }
+    }
+    load()
+  }, [searchParams, currentUser])
 
-    setAutoSaveStatus('saving')
-    const timeoutId = setTimeout(() => {
-      saveToLocalStorage()
-    }, 2000) // Save after 2 seconds of inactivity
-
-    return () => clearTimeout(timeoutId)
-  }, [formData, questions, hasUnsavedChanges, saveToLocalStorage])
 
   // Mark as unsaved when data changes
   useEffect(() => {
@@ -300,8 +319,10 @@ const CreateQuiz = () => {
         return
       }
       
-      // Generate a unique user ID for the host
-      const hostId = Date.now().toString() + Math.random().toString(36).substr(2, 9)
+      // Determine host/creator ID
+      const hostId = (currentUser && !currentUser.isGuest)
+        ? currentUser.uid
+        : `guest_${Date.now()}`
       
       const sanitizedQuestionTime = Number(formData.questionTime) || 30
       
@@ -1330,15 +1351,15 @@ const CreateQuiz = () => {
               >
                 {/* Enable Rating - Styled Toggle Card (UI only) */}
                 <div
-                  className={`w-full rounded-2xl border transition-all duration-300 p-4 sm:p-5 ${
+                  className={`w-full rounded-2xl border p-4 sm:p-5 transition-all duration-300 ${
                     formData.enableRating
-                      ? 'bg-gradient-to-r from-primary-50 to-emerald-50 border-primary-200 shadow-md'
-                      : 'bg-white border-gray-200 hover:border-primary-200'
+                      ? 'border-primary-300 shadow-sm'
+                      : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <label className="flex items-start gap-4 cursor-pointer select-none">
+                  <div className="flex items-start gap-4">
                     {/* Toggle Switch */}
-                    <div className="relative inline-flex h-7 w-12 flex-shrink-0 items-center">
+                    <div className="relative inline-flex h-7 w-12 flex-shrink-0 items-center mt-0.5">
                       <input
                         type="checkbox"
                         checked={!!formData.enableRating}
@@ -1360,39 +1381,88 @@ const CreateQuiz = () => {
 
                     {/* Text Content */}
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <BarChart3 className={`w-4 h-4 ${formData.enableRating ? 'text-primary-600' : 'text-gray-500'}`} />
-                        <span className="font-semibold text-gray-900">Enable Quiz Rating</span>
-                        {formData.enableRating && (
-                          <span className="ml-1 inline-flex items-center rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
-                            On
-                          </span>
-                        )}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <BarChart3 className={`w-4 h-4 ${formData.enableRating ? 'text-primary-600' : 'text-gray-500'}`} />
+                          <span className="font-semibold text-gray-900">Enable Quiz Rating</span>
+                          {formData.enableRating && (
+                            <span className="ml-1 inline-flex items-center rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
+                              On
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-400">Optional</span>
                       </div>
                       <p className="mt-1 text-sm text-gray-600">
                         Ask participants to rate the quiz at the end (anonymous).
                       </p>
                     </div>
-                  </label>
+                  </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !formData.title || questions.some(q => !q.text.trim())}
-                  className="group bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-bold py-6 px-12 rounded-3xl transition-all duration-300 transform hover:scale-105 shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-3"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
-                      <span className="text-xl">Creating Your Quiz...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-6 h-6" />
-                      <span className="text-xl">Create Quiz</span>
-                    </>
-                  )}
-                </button>
+            {/* Actions: Save Draft or Create Quiz */}
+            <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-4">
+              <button
+                type="button"
+                disabled={savingDraft}
+                onClick={async () => {
+                  try {
+                    setSavingDraft(true)
+                    const draftPayload = { formData, questions, timestamp: Date.now() }
+                    if (!currentUser || currentUser.isGuest) {
+                      // Save locally for guests
+                      localStorage.setItem('quizDraft', JSON.stringify(draftPayload))
+                      setLastSaved(new Date())
+                      setHasUnsavedChanges(false)
+                      success('Draft saved locally')
+                    } else {
+                      if (draftId) {
+                        await updateDraftRemote(currentUser.uid, draftId, draftPayload)
+                        success('Draft updated')
+                      } else {
+                        const id = await saveDraftRemote(currentUser.uid, draftPayload)
+                        setDraftId(id)
+                        success('Draft saved')
+                      }
+                    }
+                  } catch (e) {
+                    console.error(e)
+                    error('Failed to save draft')
+                  } finally {
+                    setSavingDraft(false)
+                  }
+                }}
+                className="btn btn-outline rounded-2xl transition-transform duration-200 hover:-translate-y-0.5"
+              >
+                <Save className="w-5 h-5" />
+                <span>{savingDraft ? 'Saving...' : 'Save Draft'}</span>
+              </button>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 text-gray-400 select-none">
+                <span className="block w-8 h-px bg-gray-200" />
+                <span className="text-xs uppercase tracking-wide">or</span>
+                <span className="block w-8 h-px bg-gray-200" />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting || !formData.title || questions.some(q => !q.text.trim())}
+                className="btn btn-primary rounded-2xl transition-transform duration-300 hover:scale-105 shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Creating Your Quiz...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    <span>Create Quiz</span>
+                  </>
+                )}
+              </button>
+            </div>
               </motion.div>
             </motion.form>
           </div>

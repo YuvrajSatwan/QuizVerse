@@ -2,15 +2,13 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  Brain, 
   User, 
   Menu, 
   X, 
   LogOut,
-  Settings,
-  Plus,
-  Play
+  FileText
 } from 'lucide-react'
+import Logo from './Logo'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 
@@ -58,8 +56,8 @@ const Navbar = () => {
     setIsMenuOpen(false)
   }, [location.pathname])
 
-  // Navigation items for better mobile experience
-  const navItems = []
+  // Navigation items (mobile only now) — remove Create/Join from navbar
+  const navItems = currentUser ? [{ name: 'My Quizzes', path: '/my-quizzes', icon: FileText }] : []
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/20">
@@ -68,37 +66,29 @@ const Navbar = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
             <motion.div
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.97 }}
+              className="shadow-lg rounded-2xl"
             >
-              <Brain className="h-8 w-8 text-primary-500" />
+              <Logo size={36} />
             </motion.div>
             <span className="text-xl font-bold text-gradient">Quizzer</span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <Link
-                  key={item.name}
-                  to={item.path}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-xl transition-all duration-200 ${
-                    location.pathname === item.path
-                      ? 'bg-primary-100 text-primary-700'
-                      : 'text-gray-600 hover:text-primary-600 hover:bg-primary-50'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{item.name}</span>
-                </Link>
-              )
-            })}
-          </div>
+          {/* Desktop Navigation - removed Create/Join; My Quizzes moved to right */}
+          <div className="hidden md:flex items-center space-x-8" />
 
-          {/* User Menu - Only show when on create quiz page or user is signed in */}
+          {/* Right section: My Quizzes button (when signed in) + User menu */}
           <div className="flex items-center space-x-4">
+            {currentUser && (
+              <Link
+                to="/my-quizzes"
+                className="hidden md:inline-flex items-center gap-2 btn btn-primary px-4 py-2 rounded-xl"
+              >
+                <FileText className="h-4 w-4" />
+                <span>My Quizzes</span>
+              </Link>
+            )}
             {currentUser ? (
               <div className="relative" ref={profileMenuRef}>
                 <motion.button
@@ -183,11 +173,7 @@ const Navbar = () => {
                       <Link
                         to={item.path}
                         onClick={() => setIsMenuOpen(false)}
-                        className={`flex items-center space-x-3 px-4 py-4 mx-2 rounded-2xl transition-all duration-200 min-h-[48px] text-base font-medium ${
-                          location.pathname === item.path
-                            ? 'bg-primary-100 text-primary-700 shadow-sm'
-                            : 'text-gray-700 hover:text-primary-600 hover:bg-primary-50/80 active:bg-primary-100'
-                        }`}
+                        className="flex items-center space-x-3 px-4 py-4 mx-2 rounded-2xl btn btn-primary"
                       >
                         <Icon className="h-5 w-5 flex-shrink-0" />
                         <span>{item.name}</span>

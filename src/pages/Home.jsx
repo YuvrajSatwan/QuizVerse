@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, useMotionValue, useTransform } from 'framer-motion'
 import { 
   Plus, 
   Play, 
@@ -18,8 +18,24 @@ import {
   Twitter,
   ExternalLink
 } from 'lucide-react'
+import Logo from '../components/Logo'
+import LogoMonogram from '../components/LogoMonogram'
 
 const Home = () => {
+  // Hero tilt animation (parallax)
+  const tiltX = useMotionValue(0)
+  const tiltY = useMotionValue(0)
+  const rotateX = useTransform(tiltY, [-1, 1], [6, -6])
+  const rotateY = useTransform(tiltX, [-1, 1], [-6, 6])
+  const handleHeroMouseMove = (e) => {
+    const { innerWidth: w, innerHeight: h } = window
+    const nx = (e.clientX / w) * 2 - 1
+    const ny = (e.clientY / h) * 2 - 1
+    tiltX.set(nx)
+    tiltY.set(ny)
+  }
+  const resetTilt = () => { tiltX.set(0); tiltY.set(0) }
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -87,6 +103,7 @@ const Home = () => {
     <div className="min-h-screen">
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 pt-20 sm:pt-24">
+        {/* Background Mesh + Vignette */}
         {/* Background Elements - Hidden on mobile for better performance */}
         <div className="absolute inset-0 overflow-hidden hidden sm:block">
           <motion.div
@@ -116,9 +133,21 @@ const Home = () => {
           className="relative z-10 text-center max-w-4xl mx-auto px-2"
         >
           <motion.div variants={itemVariants} className="mb-8 sm:mb-12">
-            <motion.div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-primary-500 to-primary-600 rounded-3xl mb-4 sm:mb-6 shadow-glow">
-              <Brain className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
-            </motion.div>
+            <div className="relative inline-flex items-center justify-center" onMouseMove={handleHeroMouseMove} onMouseLeave={resetTilt}>
+              {/* Animated glow */}
+              <motion.div
+                className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-primary-400/30 to-secondary-400/30 blur-xl"
+                animate={{ opacity: [0.4, 0.7, 0.4], scale: [0.98, 1.03, 0.98] }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              {/* Icon with tilt */}
+              <motion.div
+                style={{ rotateX, rotateY, transformPerspective: 700 }}
+                className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-primary-500 to-primary-600 rounded-3xl mb-4 sm:mb-6 shadow-glow"
+              >
+                <Brain className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+              </motion.div>
+            </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold mb-4 sm:mb-6 px-2">
               Welcome to{' '}
               <span className="text-gradient block sm:inline">Quizzer</span>
@@ -132,22 +161,26 @@ const Home = () => {
           </motion.div>
 
           <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center items-center px-4">
-            <Link
-              to="/create"
-              className="group btn btn-primary text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto max-w-sm"
-            >
-              <Plus className="w-5 h-5" />
-              <span>Create Quiz</span>
-              <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-            </Link>
-            <Link
-              to="/join"
-              className="group btn btn-secondary text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto max-w-sm"
-            >
-              <Play className="w-5 h-5" />
-              <span>Join Quiz</span>
-              <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-            </Link>
+            <motion.div whileHover={{ scale: 1.04, y: -2 }} whileTap={{ scale: 0.98 }}>
+              <Link
+                to="/create"
+                className="group btn btn-primary text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto max-w-sm"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Create Quiz</span>
+                <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+              </Link>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.04, y: -2 }} whileTap={{ scale: 0.98 }}>
+              <Link
+                to="/join"
+                className="group btn btn-secondary text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto max-w-sm"
+              >
+                <Play className="w-5 h-5" />
+                <span>Join Quiz</span>
+                <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+              </Link>
+            </motion.div>
           </motion.div>
         </motion.div>
 
@@ -170,9 +203,11 @@ const Home = () => {
           <motion.div
             animate={{ y: [-15, 15, -15] }}
             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute bottom-32 left-8 lg:left-32 text-accent-400/60"
+            className="absolute bottom-32 left-8 lg:left-32"
           >
-            <Brain className="w-6 h-6 lg:w-8 lg:h-8" />
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center opacity-70">
+              <LogoMonogram size={20} className="text-white" />
+            </div>
           </motion.div>
         </div>
         
@@ -321,8 +356,8 @@ const Home = () => {
             {/* Brand */}
             <div className="sm:col-span-2 lg:col-span-1">
               <div className="flex items-center space-x-2 mb-4 sm:mb-6">
-                <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center">
-                  <Brain className="w-6 h-6 text-white" />
+                <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center">
+                  <LogoMonogram size={22} className="text-white" />
                 </div>
                 <span className="text-xl font-bold text-white">Quizzer</span>
               </div>

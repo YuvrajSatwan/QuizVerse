@@ -26,6 +26,7 @@ const JoinQuiz = () => {
   })
   
   const [isJoining, setIsJoining] = useState(false)
+  const [endedInfo, setEndedInfo] = useState(null)
 
   // Prefill code from query param and focus name for minimal flow
   useEffect(() => {
@@ -76,6 +77,18 @@ const JoinQuiz = () => {
         return
       }
 
+      // Prevent joining if quiz has ended (status finished or all questions done)
+      const totalQuestions = Array.isArray(foundQuiz.questions) ? foundQuiz.questions.length : 0
+      const isFinished = (foundQuiz.status === 'finished') || (typeof foundQuiz.currentQuestion === 'number' && totalQuestions > 0 && foundQuiz.currentQuestion >= totalQuestions)
+      if (isFinished) {
+        setEndedInfo({
+          id: foundQuiz.id,
+          title: foundQuiz.title || 'Quiz',
+          endedAt: foundQuiz.endedAt?.toDate ? foundQuiz.endedAt.toDate() : null,
+        })
+        return
+      }
+
       const playerId = await joinQuiz(foundQuiz.id, formData.playerName)
       
       // Store player info in localStorage
@@ -110,13 +123,14 @@ const JoinQuiz = () => {
           </p>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-2xl shadow-lg p-8"
-        >
-          <form onSubmit={handleSubmit} className="space-y-4">
+        {!endedInfo ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white rounded-2xl shadow-lg p-8"
+          >
+            <form onSubmit={handleSubmit} className="space-y-4">
             {/* Code input only when not provided via link */}
             {!formData.quizCode && (
               <div>
@@ -160,6 +174,37 @@ const JoinQuiz = () => {
             </button>
           </form>
         </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white rounded-2xl shadow-lg p-8 text-center"
+          >
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center mb-4">
+              <Trophy className="w-8 h-8 text-gray-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">This quiz has ended</h2>
+            <p className="text-gray-600 mb-6">
+              {endedInfo.title} is no longer accepting participants.
+              {endedInfo.endedAt ? ` Ended at ${endedInfo.endedAt.toLocaleString()}.` : ''}
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                onClick={() => { setEndedInfo(null); setFormData({ quizCode: '', playerName: '' }) }}
+                className="btn btn-outline px-6 py-3 rounded-xl"
+              >
+                Try another code
+              </button>
+              <button
+                onClick={() => navigate('/')}
+                className="btn btn-primary px-6 py-3 rounded-xl"
+              >
+                Back to Home
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         <motion.div
           initial={{ opacity: 0 }}
